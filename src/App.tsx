@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
 import { Blog } from './pages/Blog';
+import { Admin } from './pages/Admin';
 import Test from './pages/Test';
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
           <Route path="/privacy" element={<Landing />} />
           <Route path="/terms" element={<Landing />} />
           <Route path="/test" element={<Test />} />
+          <Route path="/admin" element={<Admin />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

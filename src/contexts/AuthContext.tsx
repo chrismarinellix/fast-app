@@ -71,89 +71,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Set up auth state change listener to catch INITIAL_SESSION
+    let mounted = true;
+
+    // Set up auth state change listener - Supabase handles URL tokens automatically
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       console.log('Auth state changed:', event);
-      if (event === 'INITIAL_SESSION') {
+
+      if (!mounted) return;
+
+      // Handle all auth events
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (newSession) {
-          console.log('Got initial session from storage');
           await handleSession(newSession);
         }
         setLoading(false);
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        await handleSession(newSession);
-        setLoading(false);
+        // Clean URL after successful auth
+        if (window.location.hash || window.location.search.includes('code=')) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
       } else if (event === 'SIGNED_OUT') {
         await handleSession(null);
         setLoading(false);
       }
     });
 
-    // Check for URL tokens (magic link / OAuth callback)
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const searchParams = new URLSearchParams(window.location.search);
-    const accessToken = hashParams.get('access_token');
-    const refreshToken = hashParams.get('refresh_token');
-    const code = searchParams.get('code');
-
-    // Process URL tokens if present
-    const processUrlTokens = async () => {
-      if (accessToken && refreshToken) {
-        console.log('Found tokens in URL hash');
-        try {
-          const { data, error } = await withTimeout(
-            supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            }),
-            5000
-          );
-
-          if (error) {
-            console.error('Error setting session:', error);
-          } else if (data.session) {
-            await handleSession(data.session);
-            window.history.replaceState({}, '', window.location.pathname);
-          }
-        } catch (e) {
-          console.error('setSession timeout:', e);
-        }
-        setLoading(false);
-        return true;
-      }
-
-      if (code) {
-        console.log('Found auth code in URL');
-        try {
-          const { data, error } = await withTimeout(
-            supabase.auth.exchangeCodeForSession(code),
-            5000
-          );
-
-          if (error) {
-            console.error('Error exchanging code:', error);
-          } else if (data.session) {
-            await handleSession(data.session);
-            window.history.replaceState({}, '', window.location.pathname);
-          }
-        } catch (e) {
-          console.error('exchangeCodeForSession timeout:', e);
-        }
-        setLoading(false);
-        return true;
-      }
-
-      return false;
-    };
-
-    processUrlTokens();
-
-    // Fallback timeout in case INITIAL_SESSION doesn't fire
+    // Fallback: if no auth event fires within 2 seconds, stop loading
     const timeout = setTimeout(() => {
-      setLoading(false);
-    }, 3000);
+      if (mounted) {
+        console.log('Auth timeout - stopping loading');
+        setLoading(false);
+      }
+    }, 2000);
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
       clearTimeout(timeout);
     };

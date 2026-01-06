@@ -755,12 +755,13 @@ export function Dashboard() {
                             transform: 'translateX(-50%)',
                             marginBottom: 12,
                             padding: '14px 18px',
-                            background: '#1a1a1a',
-                            color: '#fff',
+                            background: '#fff',
+                            color: '#333',
                             borderRadius: 12,
                             fontSize: 13,
                             width: 260,
-                            boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
+                            boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
+                            border: '1px solid rgba(0,0,0,0.08)',
                             zIndex: 1000,
                           }}>
                             <div style={{
@@ -773,14 +774,14 @@ export function Dashboard() {
                             }}>
                               Hour {m.hour} {isCurrent ? '• CURRENT' : isPassed ? '• ACHIEVED' : '• UPCOMING'}
                             </div>
-                            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 16 }}>{m.title}</div>
-                            <div style={{ fontSize: 13, opacity: 0.9, lineHeight: 1.6, marginBottom: 10 }}>{m.detail}</div>
+                            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 16, color: '#1a1a1a' }}>{m.title}</div>
+                            <div style={{ fontSize: 13, color: '#555', lineHeight: 1.6, marginBottom: 10 }}>{m.detail}</div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                               {m.benefits.map(b => (
                                 <span key={b} style={{
                                   fontSize: 11,
                                   padding: '3px 8px',
-                                  background: `${m.color}30`,
+                                  background: `${m.color}15`,
                                   color: m.color,
                                   borderRadius: 10,
                                   fontWeight: 500,
@@ -799,7 +800,7 @@ export function Dashboard() {
                               height: 0,
                               borderLeft: '8px solid transparent',
                               borderRight: '8px solid transparent',
-                              borderTop: '8px solid #1a1a1a',
+                              borderTop: '8px solid #fff',
                             }} />
                           </div>
                         )}
