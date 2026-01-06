@@ -13,8 +13,12 @@ CREATE TABLE profiles (
   subscription_plan TEXT CHECK (subscription_plan IN ('monthly', 'yearly')),
   stripe_customer_id TEXT,
   fasts_completed INTEGER NOT NULL DEFAULT 0,
+  paid_until TIMESTAMPTZ, -- $5 gives 15 days of unlimited fasts
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migration for existing databases: Add paid_until column
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS paid_until TIMESTAMPTZ;
 
 -- Fasting sessions table
 CREATE TABLE fasting_sessions (
@@ -24,8 +28,12 @@ CREATE TABLE fasting_sessions (
   end_time TIMESTAMPTZ,
   target_hours INTEGER NOT NULL DEFAULT 24,
   completed BOOLEAN NOT NULL DEFAULT FALSE,
+  paid BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migration for existing databases: Add paid column if it doesn't exist
+-- ALTER TABLE fasting_sessions ADD COLUMN IF NOT EXISTS paid BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Fasting notes table
 CREATE TABLE fasting_notes (

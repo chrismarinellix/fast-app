@@ -10,10 +10,10 @@ export async function handler(event: any) {
   }
 
   try {
-    const { priceId, userId, email, successUrl, cancelUrl } = JSON.parse(event.body);
+    const { priceId, userId, email, fastId, successUrl, cancelUrl } = JSON.parse(event.body);
 
     const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
+      mode: 'payment', // One-time payment for $5 per fast
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       customer_email: email,
@@ -21,13 +21,14 @@ export async function handler(event: any) {
       cancel_url: cancelUrl,
       metadata: {
         userId,
+        fastId, // Pass fastId to mark as paid in webhook
       },
     });
 
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: session.id }),
+      body: JSON.stringify({ sessionId: session.id, url: session.url }),
     };
   } catch (error: any) {
     console.error('Checkout error:', error);

@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
 import { Blog } from './pages/Blog';
+import Test from './pages/Test';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/pricing" element={<Landing />} />
           <Route path="/privacy" element={<Landing />} />
           <Route path="/terms" element={<Landing />} />
+          <Route path="/test" element={<Test />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

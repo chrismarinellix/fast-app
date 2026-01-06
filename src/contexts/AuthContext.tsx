@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
-import { supabase, getUserProfile, type UserProfile } from '../lib/supabase';
+import { supabase, withTimeout, getUserProfile, type UserProfile } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -25,55 +25,138 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
+  const handleSession = async (newSession: Session | null) => {
+    setSession(newSession);
+    setUser(newSession?.user ?? null);
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        getUserProfile(session.user.id).then(setProfile);
-      }
-      setLoading(false);
-    });
+    if (newSession) {
+      try {
+        // Load or create profile with timeout to prevent freezing
+        const existingProfile = await withTimeout(
+          getUserProfile(newSession.user.id),
+          5000
+        );
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+        if (!existingProfile) {
+          console.log('Creating new profile for user:', newSession.user.id);
+          const { error } = await supabase
+            .from('profiles')
+            .insert({
+              id: newSession.user.id,
+              email: newSession.user.email,
+              subscription_status: 'free',
+              fasts_completed: 0,
+            });
 
-        if (session?.user && supabase) {
-          // Create profile if it doesn't exist
-          const existingProfile = await getUserProfile(session.user.id);
-          if (!existingProfile) {
-            // Create new profile
-            const { error } = await supabase
-              .from('profiles')
-              .insert({
-                id: session.user.id,
-                email: session.user.email,
-                subscription_status: 'free',
-                fasts_completed: 0,
-              });
-            if (!error) {
-              const newProfile = await getUserProfile(session.user.id);
-              setProfile(newProfile);
-            }
+          if (!error) {
+            const newProfile = await withTimeout(
+              getUserProfile(newSession.user.id),
+              5000
+            );
+            setProfile(newProfile);
           } else {
-            setProfile(existingProfile);
+            console.error('Error creating profile:', error);
           }
         } else {
-          setProfile(null);
+          console.log('Loaded existing profile');
+          setProfile(existingProfile);
         }
+      } catch (e) {
+        console.error('Profile operation timed out or failed:', e);
+        // Still allow user to proceed - profile will load on refresh
       }
-    );
+    } else {
+      setProfile(null);
+    }
+  };
 
-    return () => subscription.unsubscribe();
+  useEffect(() => {
+    // Set up auth state change listener to catch INITIAL_SESSION
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      console.log('Auth state changed:', event);
+      if (event === 'INITIAL_SESSION') {
+        if (newSession) {
+          console.log('Got initial session from storage');
+          await handleSession(newSession);
+        }
+        setLoading(false);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        await handleSession(newSession);
+        setLoading(false);
+      } else if (event === 'SIGNED_OUT') {
+        await handleSession(null);
+        setLoading(false);
+      }
+    });
+
+    // Check for URL tokens (magic link / OAuth callback)
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const searchParams = new URLSearchParams(window.location.search);
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+    const code = searchParams.get('code');
+
+    // Process URL tokens if present
+    const processUrlTokens = async () => {
+      if (accessToken && refreshToken) {
+        console.log('Found tokens in URL hash');
+        try {
+          const { data, error } = await withTimeout(
+            supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            }),
+            5000
+          );
+
+          if (error) {
+            console.error('Error setting session:', error);
+          } else if (data.session) {
+            await handleSession(data.session);
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        } catch (e) {
+          console.error('setSession timeout:', e);
+        }
+        setLoading(false);
+        return true;
+      }
+
+      if (code) {
+        console.log('Found auth code in URL');
+        try {
+          const { data, error } = await withTimeout(
+            supabase.auth.exchangeCodeForSession(code),
+            5000
+          );
+
+          if (error) {
+            console.error('Error exchanging code:', error);
+          } else if (data.session) {
+            await handleSession(data.session);
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        } catch (e) {
+          console.error('exchangeCodeForSession timeout:', e);
+        }
+        setLoading(false);
+        return true;
+      }
+
+      return false;
+    };
+
+    processUrlTokens();
+
+    // Fallback timeout in case INITIAL_SESSION doesn't fire
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 3000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   return (

@@ -31,22 +31,37 @@ export async function handler(event: any) {
       case 'checkout.session.completed': {
         const session = stripeEvent.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.userId;
+        const fastId = session.metadata?.fastId;
         const customerId = session.customer as string;
 
-        if (userId) {
-          // Determine plan based on price
-          const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
-          const priceId = subscription.items.data[0]?.price.id;
-          const isYearly = priceId === process.env.STRIPE_YEARLY_PRICE_ID;
+        console.log('Checkout completed!');
+        console.log('userId:', userId);
+        console.log('fastId:', fastId);
+        console.log('customerId:', customerId);
 
-          await supabase
+        // Handle $5 for 200 days of unlimited fasts
+        if (userId) {
+          // Calculate 200 days from now
+          const paidUntil = new Date();
+          paidUntil.setDate(paidUntil.getDate() + 200);
+
+          console.log('Updating profile with paid_until:', paidUntil.toISOString());
+
+          const { error } = await supabase
             .from('profiles')
             .update({
-              subscription_status: 'active',
-              subscription_plan: isYearly ? 'yearly' : 'monthly',
-              stripe_customer_id: customerId,
+              paid_until: paidUntil.toISOString(),
+              stripe_customer_id: customerId || undefined,
             })
             .eq('id', userId);
+
+          if (error) {
+            console.error('Error updating profile:', error);
+          } else {
+            console.log('Profile updated successfully!');
+          }
+        } else {
+          console.error('No userId in session metadata!');
         }
         break;
       }

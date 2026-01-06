@@ -32,7 +32,7 @@ const FEATURES = [
 
 export function Landing() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -42,6 +42,25 @@ export function Landing() {
   if (user) {
     navigate('/dashboard');
     return null;
+  }
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: '#fafafa',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: 16,
+      }}>
+        <Flame size={48} color="#22c55e" />
+        <div style={{ fontSize: 24, fontWeight: 700 }}>Fast!</div>
+        <div style={{ color: '#999', fontSize: 14 }}>Loading...</div>
+      </div>
+    );
   }
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -88,10 +107,11 @@ export function Landing() {
           <Flame size={32} color="#22c55e" />
           <span style={{ fontSize: 24, fontWeight: 800, color: '#1a1a1a' }}>Fast!</span>
         </div>
-        <nav style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+        {/* Desktop nav */}
+        <nav className="desktop-nav" style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
           <a href="#features" style={{ color: '#666', textDecoration: 'none', fontSize: 14 }}>Features</a>
           <a href="#pricing" style={{ color: '#666', textDecoration: 'none', fontSize: 14 }}>Pricing</a>
-          <a href="/blog" style={{ color: '#666', textDecoration: 'none', fontSize: 14 }}>Resources</a>
+          <a href="#signup" style={{ color: '#666', textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Login</a>
           <a href="#signup" style={{
             padding: '10px 20px',
             background: '#22c55e',
@@ -100,8 +120,21 @@ export function Landing() {
             textDecoration: 'none',
             fontSize: 14,
             fontWeight: 600,
-          }}>Get Started</a>
+          }}>Sign Up Free</a>
         </nav>
+        {/* Mobile nav */}
+        <div className="mobile-show" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <a href="#signup" style={{ color: '#666', textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Login</a>
+          <a href="#signup" style={{
+            padding: '8px 16px',
+            background: '#22c55e',
+            color: '#fff',
+            borderRadius: 8,
+            textDecoration: 'none',
+            fontSize: 14,
+            fontWeight: 600,
+          }}>Sign Up</a>
+        </div>
       </header>
 
       {/* Hero */}
@@ -176,7 +209,7 @@ export function Landing() {
           ) : (
             <>
               <h3 style={{ margin: '0 0 20px', fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>
-                Start your first fast for free
+                Sign in or create account
               </h3>
 
               {error && (
@@ -228,7 +261,7 @@ export function Landing() {
                     gap: 8,
                   }}
                 >
-                  {loading ? 'Sending...' : 'Get Started Free'}
+                  {loading ? 'Sending...' : 'Continue with Email'}
                   {!loading && <ArrowRight size={18} />}
                 </button>
               </form>
@@ -273,7 +306,7 @@ export function Landing() {
               </button>
 
               <p style={{ margin: '16px 0 0', fontSize: 12, color: '#999', textAlign: 'center' }}>
-                No credit card required. Your first fast is completely free.
+                We'll send you a magic link to sign in. No password needed.
               </p>
             </>
           )}
@@ -403,150 +436,122 @@ export function Landing() {
         padding: '80px 24px',
         background: '#fff',
       }}>
-        <div style={{ maxWidth: 800, margin: '0 auto' }}>
-          <h2 style={{ textAlign: 'center', fontSize: 32, fontWeight: 700, marginBottom: 16 }}>
-            Simple, transparent pricing
+        <div style={{ maxWidth: 700, margin: '0 auto' }}>
+          <h2 style={{ textAlign: 'center', fontSize: 36, fontWeight: 800, marginBottom: 16 }}>
+            Start free. Unlock unlimited.
           </h2>
-          <p style={{ textAlign: 'center', color: '#666', marginBottom: 48 }}>
-            Start with a free fast. Upgrade when you're ready.
+          <p style={{ textAlign: 'center', color: '#666', marginBottom: 48, fontSize: 18 }}>
+            First 10 hours free. Just $5 for 200 days of unlimited fasting.
           </p>
 
+          {/* Single pricing card */}
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 24,
+            maxWidth: 420,
+            margin: '0 auto',
+            background: '#fff',
+            borderRadius: 24,
+            border: '2px solid #22c55e',
+            overflow: 'hidden',
+            boxShadow: '0 8px 40px rgba(34, 197, 94, 0.15)',
           }}>
-            {/* Free */}
+            {/* Free part */}
             <div style={{
-              background: '#fafafa',
               padding: 32,
-              borderRadius: 16,
-              border: '2px solid #e5e5e5',
+              background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(22, 163, 74, 0.05))',
+              borderBottom: '1px solid rgba(34, 197, 94, 0.2)',
             }}>
-              <h3 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>Free Trial</h3>
-              <div style={{ fontSize: 36, fontWeight: 800, marginBottom: 8 }}>$0</div>
-              <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>Try your first 24-hour fast</p>
-              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px' }}>
-                {['One complete fast', 'All milestone tracking', 'Journal entries', 'Progress visualization'].map((item) => (
-                  <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, fontSize: 14 }}>
-                    <Check size={18} color="#22c55e" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 12,
+                  background: '#22c55e',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Flame size={24} color="#fff" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>First 10 Hours</div>
+                  <div style={{ color: '#22c55e', fontWeight: 800, fontSize: 28 }}>FREE</div>
+                </div>
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {['Start fasting immediately', 'Track 5 early milestones', 'See your progress', 'Journal your experience'].map((item) => (
+                  <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, fontSize: 14, color: '#555' }}>
+                    <Check size={16} color="#22c55e" />
                     {item}
                   </li>
                 ))}
               </ul>
-              <a href="#signup" style={{
-                display: 'block',
-                padding: '14px 24px',
-                background: '#f5f5f5',
-                color: '#333',
-                borderRadius: 10,
-                textDecoration: 'none',
-                textAlign: 'center',
-                fontWeight: 600,
-              }}>
-                Get Started
-              </a>
             </div>
 
-            {/* Monthly */}
-            <div style={{
-              background: '#fff',
-              padding: 32,
-              borderRadius: 16,
-              border: '2px solid #22c55e',
-              position: 'relative',
-            }}>
-              <div style={{
-                position: 'absolute',
-                top: -12,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                background: '#22c55e',
-                color: '#fff',
-                padding: '4px 12px',
-                borderRadius: 12,
-                fontSize: 12,
-                fontWeight: 600,
-              }}>
-                Most Flexible
+            {/* Paid part */}
+            <div style={{ padding: 32 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Sparkles size={24} color="#fff" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>200 Days Unlimited</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                    <span style={{ color: '#16a34a', fontWeight: 800, fontSize: 28 }}>$5</span>
+                    <span style={{ color: '#999', fontSize: 14 }}>for 200 days</span>
+                  </div>
+                </div>
               </div>
-              <h3 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>Monthly</h3>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
-                <span style={{ fontSize: 36, fontWeight: 800 }}>$2.99</span>
-                <span style={{ color: '#666' }}>/month</span>
-              </div>
-              <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>Cancel anytime</p>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px' }}>
-                {['Unlimited fasts', 'Complete history', 'All milestones & education', 'Journal with insights', 'Priority support'].map((item) => (
-                  <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, fontSize: 14 }}>
-                    <Check size={18} color="#22c55e" />
+                {['Unlimited fasts for 200 days', 'All 13 metabolic milestones', 'Extend any fast past 24h', 'Journal & progress history'].map((item) => (
+                  <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, fontSize: 14, color: '#555' }}>
+                    <Check size={16} color="#22c55e" />
                     {item}
                   </li>
                 ))}
               </ul>
               <a href="#signup" style={{
                 display: 'block',
-                padding: '14px 24px',
+                padding: '16px 24px',
                 background: 'linear-gradient(135deg, #22c55e, #16a34a)',
                 color: '#fff',
-                borderRadius: 10,
-                textDecoration: 'none',
-                textAlign: 'center',
-                fontWeight: 600,
-              }}>
-                Start Free Trial
-              </a>
-            </div>
-
-            {/* Yearly */}
-            <div style={{
-              background: '#fafafa',
-              padding: 32,
-              borderRadius: 16,
-              border: '2px solid #e5e5e5',
-              position: 'relative',
-            }}>
-              <div style={{
-                position: 'absolute',
-                top: -12,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                background: '#eab308',
-                color: '#fff',
-                padding: '4px 12px',
                 borderRadius: 12,
-                fontSize: 12,
-                fontWeight: 600,
-              }}>
-                Best Value
-              </div>
-              <h3 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>Yearly</h3>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
-                <span style={{ fontSize: 36, fontWeight: 800 }}>$19</span>
-                <span style={{ color: '#666' }}>/year</span>
-              </div>
-              <p style={{ color: '#16a34a', fontSize: 14, fontWeight: 600, marginBottom: 24 }}>Save 47%</p>
-              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px' }}>
-                {['Everything in Monthly', '2 months free', 'Early access to features', 'Community access'].map((item) => (
-                  <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, fontSize: 14 }}>
-                    <Check size={18} color="#22c55e" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <a href="#signup" style={{
-                display: 'block',
-                padding: '14px 24px',
-                background: '#1a1a1a',
-                color: '#fff',
-                borderRadius: 10,
                 textDecoration: 'none',
                 textAlign: 'center',
-                fontWeight: 600,
+                fontWeight: 700,
+                fontSize: 16,
+                boxShadow: '0 4px 20px rgba(34, 197, 94, 0.3)',
               }}>
-                Start Free Trial
+                Start Your Free Fast
               </a>
             </div>
+          </div>
+
+          {/* Value Props */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 48,
+            marginTop: 48,
+            flexWrap: 'wrap',
+          }}>
+            {[
+              { icon: '🆓', text: '10 hours free' },
+              { icon: '💵', text: '$5 to unlock' },
+              { icon: '🔄', text: 'Pay per fast' },
+            ].map(({ icon, text }) => (
+              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 24 }}>{icon}</span>
+                <span style={{ color: '#666', fontSize: 15, fontWeight: 500 }}>{text}</span>
+              </div>
+            ))}
           </div>
         </div>
       </section>

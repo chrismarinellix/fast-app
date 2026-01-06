@@ -45,9 +45,109 @@ input:focus, textarea:focus, button:focus {
   outline: none;
 }
 
-/* Responsive */
+/* Responsive utilities */
+.mobile-hide {
+  display: block;
+}
+
+.mobile-show {
+  display: none;
+}
+
+/* Stats grid - 4 columns default */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+/* Journey timeline */
+.journey-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Mobile styles */
 @media (max-width: 640px) {
-  nav {
+  /* Hide desktop nav */
+  .desktop-nav {
     display: none !important;
+  }
+
+  .mobile-hide {
+    display: none !important;
+  }
+
+  .mobile-show {
+    display: block !important;
+  }
+
+  /* Stats grid - 2x2 on mobile */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  /* Tighter padding on mobile */
+  .mobile-padding {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .card-padding {
+    padding: 24px 20px !important;
+  }
+
+  /* Smaller buttons on mobile */
+  .action-buttons {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .action-buttons button {
+    width: 100% !important;
+  }
+
+  /* Progress bar milestones - smaller on mobile */
+  .milestone-dot {
+    width: 10px !important;
+    height: 10px !important;
+  }
+
+  /* Journey cards tighter on mobile */
+  .journey-card {
+    padding: 12px 14px !important;
+    gap: 12px !important;
+  }
+
+  .journey-card .icon-box {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  /* Feeling buttons wrap better */
+  .feeling-buttons {
+    gap: 6px !important;
+  }
+
+  .feeling-buttons button {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 380px) {
+  .stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .timer-display {
+    gap: 16px !important;
+  }
+
+  .timer-value {
+    font-size: 28px !important;
   }
 }

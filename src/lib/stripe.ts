@@ -12,18 +12,22 @@ export function getStripe() {
   return stripePromise;
 }
 
-// Price IDs - these will be created in Stripe dashboard
+// Price ID for $5 / 200 days unlimited
+export const FAST_PRICE_ID = import.meta.env.VITE_STRIPE_FAST_PRICE_ID || '';
+
+// Legacy - keeping for backwards compatibility
 export const PRICE_IDS = {
-  monthly: import.meta.env.VITE_STRIPE_MONTHLY_PRICE_ID || '',
-  yearly: import.meta.env.VITE_STRIPE_YEARLY_PRICE_ID || '',
+  monthly: FAST_PRICE_ID,
+  yearly: FAST_PRICE_ID,
 };
 
-// Create checkout session
+// Create checkout session for a fast
 export async function createCheckoutSession(
   priceId: string,
   userId: string,
-  email: string
-): Promise<string> {
+  email: string,
+  fastId?: string
+): Promise<{ sessionId: string; url: string }> {
   const response = await fetch('/.netlify/functions/create-checkout', {
     method: 'POST',
     headers: {
@@ -33,8 +37,9 @@ export async function createCheckoutSession(
       priceId,
       userId,
       email,
-      successUrl: `${window.location.origin}/dashboard?success=true`,
-      cancelUrl: `${window.location.origin}/pricing?cancelled=true`,
+      fastId, // Pass fastId to mark as paid after successful payment
+      successUrl: `${window.location.origin}/dashboard?success=true&paid=true`,
+      cancelUrl: `${window.location.origin}/dashboard?cancelled=true`,
     }),
   });
 
@@ -42,24 +47,29 @@ export async function createCheckoutSession(
     throw new Error('Failed to create checkout session');
   }
 
-  const { sessionId } = await response.json();
-  return sessionId;
+  const { sessionId, url } = await response.json();
+  return { sessionId, url };
 }
 
-// Redirect to Stripe Checkout
+// Redirect to Stripe Checkout for fast payment
 export async function redirectToCheckout(
   priceId: string,
   userId: string,
-  email: string
+  email: string,
+  fastId?: string
 ) {
-  const stripe = await getStripe();
-  if (!stripe) throw new Error('Stripe not loaded');
+  console.log('Step 1: Creating checkout session...');
 
-  const sessionId = await createCheckoutSession(priceId, userId, email);
+  const { sessionId, url } = await createCheckoutSession(priceId, userId, email, fastId);
+  console.log('Step 2: Session created:', sessionId);
 
-  // Use type assertion for redirectToCheckout as it exists but may not be in types
-  const result = await (stripe as unknown as { redirectToCheckout: (opts: { sessionId: string }) => Promise<{ error?: Error }> }).redirectToCheckout({ sessionId });
-  if (result.error) throw result.error;
+  if (!url) {
+    throw new Error('No checkout URL returned from Stripe');
+  }
+
+  // Redirect using window.location (stripe.redirectToCheckout is deprecated)
+  console.log('Step 3: Redirecting to Stripe checkout...');
+  window.location.href = url;
 }
 
 // Create customer portal session

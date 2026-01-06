@@ -1,73 +1,63 @@
-# React + TypeScript + Vite
+# Fast! - Fasting Tracker App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A beautiful, minimal fasting tracker with timer, milestones, mood tracking, and payment system.
 
-Currently, two official plugins are available:
+**Live**: https://fast-fasting-app.netlify.app
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech Stack
 
-## React Compiler
+- **Frontend**: React 19 + TypeScript + Vite
+- **Auth**: Supabase (Magic Link + Google OAuth)
+- **Database**: Supabase PostgreSQL
+- **Payments**: Stripe (one-time $5 for 200 days)
+- **Hosting**: Netlify + Netlify Functions
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Getting Started
 
-## Expanding the ESLint configuration
+```bash
+# Install dependencies
+npm install
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+# Run locally
+npm run dev
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+# Build
+npm run build
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Deploy
+netlify deploy --prod
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Features
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- 13-stage fasting milestones with scientific explanations
+- Real-time timer with progress visualization
+- Mood and energy tracking during fasts
+- 10 hours free, then $5 for 200 days unlimited
+- Magic link and Google OAuth sign-in
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md) - Technical details and flow diagrams
+- [Design System](docs/DESIGN.md) - Colors, typography, components
+- [Debugging](docs/DEBUGGING.md) - Solved issues and troubleshooting
+
+## Environment Variables
+
+Create `.env.local` for local development:
+
+```
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ...
+VITE_STRIPE_PUBLISHABLE_KEY=pk_live_...
+VITE_STRIPE_FAST_PRICE_ID=price_...
+```
+
+Set Netlify environment variables for functions:
+
+```bash
+netlify env:set STRIPE_SECRET_KEY "sk_live_..."
+netlify env:set SUPABASE_URL "https://xxx.supabase.co"
+netlify env:set SUPABASE_SERVICE_KEY "eyJ..."
+netlify env:set STRIPE_WEBHOOK_SECRET "whsec_..."
 ```
