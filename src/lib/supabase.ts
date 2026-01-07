@@ -89,6 +89,37 @@ export interface SharedFastNote {
 }
 
 // Auth functions
+
+// Sign in with email + password
+export async function signInWithPassword(email: string, password: string) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+// Sign up with email + password
+export async function signUpWithPassword(email: string, password: string) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${window.location.origin}/dashboard`,
+    },
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+// Legacy magic link (keeping for compatibility)
 export async function signInWithEmail(email: string) {
   if (!supabase) throw new Error('Supabase not configured');
 
