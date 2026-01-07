@@ -56,6 +56,38 @@ export interface FastingNote {
   created_at: string;
 }
 
+export interface FastShare {
+  id: string;
+  fasting_id: string;
+  user_id: string;
+  share_token: string;
+  sharer_name?: string;
+  include_notes: boolean;
+  view_count: number;
+  created_at: string;
+}
+
+export interface SharedFastData {
+  share_id: string;
+  fasting_id: string;
+  sharer_name?: string;
+  include_notes: boolean;
+  view_count: number;
+  start_time: string;
+  end_time?: string;
+  target_hours: number;
+  completed: boolean;
+}
+
+export interface SharedFastNote {
+  hour_mark: number;
+  mood: string;
+  energy_level: number;
+  hunger_level: number;
+  note?: string;
+  created_at: string;
+}
+
 // Auth functions
 export async function signInWithEmail(email: string) {
   if (!supabase) throw new Error('Supabase not configured');
@@ -281,4 +313,125 @@ export async function extendFast(fastId: string, additionalHours: number): Promi
 
   if (error) throw error;
   return data;
+}
+
+// =====================================================
+// SHARE FUNCTIONS
+// =====================================================
+
+// Generate a random share token
+function generateShareToken(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let token = '';
+  for (let i = 0; i < 12; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+}
+
+// Create a share link for a fast
+export async function createFastShare(
+  fastId: string,
+  userId: string,
+  sharerName?: string,
+  includeNotes: boolean = false
+): Promise<FastShare | null> {
+  if (!supabase) return null;
+
+  // Check if share already exists for this fast
+  const { data: existing } = await supabase
+    .from('fast_shares')
+    .select('*')
+    .eq('fasting_id', fastId)
+    .eq('user_id', userId)
+    .single();
+
+  if (existing) {
+    // Update existing share settings
+    const { data, error } = await supabase
+      .from('fast_shares')
+      .update({
+        sharer_name: sharerName,
+        include_notes: includeNotes,
+      })
+      .eq('id', existing.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  // Create new share
+  const { data, error } = await supabase
+    .from('fast_shares')
+    .insert({
+      fasting_id: fastId,
+      user_id: userId,
+      share_token: generateShareToken(),
+      sharer_name: sharerName,
+      include_notes: includeNotes,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Get share for a fast (for the owner)
+export async function getFastShare(fastId: string): Promise<FastShare | null> {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('fast_shares')
+    .select('*')
+    .eq('fasting_id', fastId)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error fetching share:', error);
+  }
+
+  return data || null;
+}
+
+// Get shared fast data by token (public, no auth required)
+export async function getSharedFast(token: string): Promise<SharedFastData | null> {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase.rpc('get_shared_fast', { token });
+
+  if (error) {
+    console.error('Error fetching shared fast:', error);
+    return null;
+  }
+
+  return data?.[0] || null;
+}
+
+// Get notes for a shared fast (public, only if include_notes is true)
+export async function getSharedFastNotes(token: string): Promise<SharedFastNote[]> {
+  if (!supabase) return [];
+
+  const { data, error } = await supabase.rpc('get_shared_fast_notes', { token });
+
+  if (error) {
+    console.error('Error fetching shared fast notes:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Delete a share
+export async function deleteFastShare(shareId: string): Promise<void> {
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from('fast_shares')
+    .delete()
+    .eq('id', shareId);
+
+  if (error) throw error;
 }

@@ -125,3 +125,102 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- =====================================================
+-- SHARE FEATURE - Allow users to share fasts with friends
+-- =====================================================
+
+-- Shared fast links table
+CREATE TABLE fast_shares (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  fasting_id UUID NOT NULL REFERENCES fasting_sessions(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  share_token VARCHAR(32) NOT NULL UNIQUE,
+  sharer_name TEXT, -- Optional display name for the share
+  include_notes BOOLEAN NOT NULL DEFAULT FALSE, -- Whether to show journal entries
+  view_count INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE fast_shares ENABLE ROW LEVEL SECURITY;
+
+-- Users can manage their own shares
+CREATE POLICY "Users can view own shares"
+  ON fast_shares FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own shares"
+  ON fast_shares FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own shares"
+  ON fast_shares FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Anyone can view shares by token (for public share pages)
+-- This uses a function to allow unauthenticated access
+CREATE OR REPLACE FUNCTION get_shared_fast(token VARCHAR)
+RETURNS TABLE (
+  share_id UUID,
+  fasting_id UUID,
+  sharer_name TEXT,
+  include_notes BOOLEAN,
+  view_count INTEGER,
+  start_time TIMESTAMPTZ,
+  end_time TIMESTAMPTZ,
+  target_hours INTEGER,
+  completed BOOLEAN
+) AS $$
+BEGIN
+  -- Increment view count
+  UPDATE fast_shares SET view_count = fast_shares.view_count + 1
+  WHERE share_token = token;
+
+  -- Return the shared fast data
+  RETURN QUERY
+  SELECT
+    fs.id as share_id,
+    fs.fasting_id,
+    fs.sharer_name,
+    fs.include_notes,
+    fs.view_count,
+    f.start_time,
+    f.end_time,
+    f.target_hours,
+    f.completed
+  FROM fast_shares fs
+  JOIN fasting_sessions f ON f.id = fs.fasting_id
+  WHERE fs.share_token = token;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get notes for a shared fast (only if include_notes is true)
+CREATE OR REPLACE FUNCTION get_shared_fast_notes(token VARCHAR)
+RETURNS TABLE (
+  hour_mark INTEGER,
+  mood TEXT,
+  energy_level INTEGER,
+  hunger_level INTEGER,
+  note TEXT,
+  created_at TIMESTAMPTZ
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    fn.hour_mark,
+    fn.mood,
+    fn.energy_level,
+    fn.hunger_level,
+    fn.note,
+    fn.created_at
+  FROM fast_shares fs
+  JOIN fasting_notes fn ON fn.fasting_id = fs.fasting_id
+  WHERE fs.share_token = token AND fs.include_notes = TRUE
+  ORDER BY fn.hour_mark ASC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Index for fast token lookups
+CREATE INDEX idx_fast_shares_token ON fast_shares(share_token);
+CREATE INDEX idx_fast_shares_user_id ON fast_shares(user_id);

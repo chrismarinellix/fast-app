@@ -3,14 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import {
   Play, RotateCcw, CheckCircle2, PenLine, Flame, Brain, Zap,
   Heart, Sparkles, Clock, History,
-  LogOut, TrendingUp, Award, Target, Plus, Timer
+  LogOut, TrendingUp, Award, Target, Plus, Timer, Share2, Copy, Check, X
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getCurrentFast, startFast, endFast, getFastingHistory,
   getFastingNotes, addFastingNote, canStartFast, updateUserProfile,
-  signOut, extendFast, type FastingSession, type FastingNote
+  signOut, extendFast, createFastShare, getFastShare,
+  type FastingSession, type FastingNote, type FastShare
 } from '../lib/supabase';
 import { redirectToCheckout, FAST_PRICE_ID } from '../lib/stripe';
 
@@ -236,6 +237,15 @@ export function Dashboard() {
     completed: boolean;
   } | null>(null);
 
+  // Share modal state
+  const [showShare, setShowShare] = useState(false);
+  const [shareTargetFast, setShareTargetFast] = useState<FastingSession | null>(null);
+  const [currentShare, setCurrentShare] = useState<FastShare | null>(null);
+  const [shareIncludeNotes, setShareIncludeNotes] = useState(false);
+  const [shareName, setShareName] = useState('');
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
   // Diary form
   const [diaryNote, setDiaryNote] = useState('');
   const [diaryMood, setDiaryMood] = useState<FastingNote['mood']>('okay');
@@ -424,6 +434,55 @@ export function Dashboard() {
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
+  };
+
+  // Share handlers
+  const handleOpenShare = async (fast: FastingSession) => {
+    setShareTargetFast(fast);
+    setShareLoading(true);
+    setShowShare(true);
+    setShareCopied(false);
+
+    // Check if share already exists
+    const existingShare = await getFastShare(fast.id);
+    if (existingShare) {
+      setCurrentShare(existingShare);
+      setShareIncludeNotes(existingShare.include_notes);
+      setShareName(existingShare.sharer_name || '');
+    } else {
+      setCurrentShare(null);
+      setShareIncludeNotes(false);
+      setShareName(profile?.name || '');
+    }
+    setShareLoading(false);
+  };
+
+  const handleCreateShare = async () => {
+    if (!shareTargetFast || !user) return;
+    setShareLoading(true);
+
+    try {
+      const share = await createFastShare(
+        shareTargetFast.id,
+        user.id,
+        shareName || undefined,
+        shareIncludeNotes
+      );
+      setCurrentShare(share);
+    } catch (error) {
+      console.error('Error creating share:', error);
+      alert('Failed to create share link');
+    }
+
+    setShareLoading(false);
+  };
+
+  const handleCopyShareLink = async () => {
+    if (!currentShare) return;
+    const shareUrl = `${window.location.origin}/share/${currentShare.share_token}`;
+    await navigator.clipboard.writeText(shareUrl);
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
   };
 
   // Calculate times - use dynamic target hours
@@ -874,6 +933,25 @@ export function Dashboard() {
                 </button>
 
                 <button
+                  onClick={() => currentFast && handleOpenShare(currentFast)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '12px 20px',
+                    background: '#fff',
+                    color: '#8b5cf6',
+                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                    borderRadius: 10,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Share2 size={18} /> Share
+                </button>
+
+                <button
                   onClick={() => setShowExtend(true)}
                   style={{
                     display: 'flex',
@@ -1021,6 +1099,24 @@ export function Dashboard() {
                                 {fast.target_hours && <span style={{ color: '#999' }}> / {fast.target_hours}h goal</span>}
                               </div>
                             </div>
+                            <button
+                              onClick={() => handleOpenShare(fast)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '5px 10px',
+                                background: '#8b5cf615',
+                                color: '#8b5cf6',
+                                border: 'none',
+                                borderRadius: 16,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <Share2 size={12} /> Share
+                            </button>
                             <div style={{
                               fontSize: 11,
                               padding: '5px 12px',
@@ -1916,6 +2012,278 @@ export function Dashboard() {
             >
               Done
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Share Modal */}
+      {showShare && shareTargetFast && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          zIndex: 100,
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 24,
+            padding: 28,
+            maxWidth: 420,
+            width: '100%',
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 20,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Share2 size={24} color="#fff" />
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Share Your Fast</h2>
+                  <p style={{ margin: 0, fontSize: 13, color: '#666' }}>Inspire your friends!</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowShare(false);
+                  setShareTargetFast(null);
+                  setCurrentShare(null);
+                }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: '#f5f5f5',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <X size={18} color="#666" />
+              </button>
+            </div>
+
+            {shareLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <div style={{ fontSize: 14, color: '#666' }}>Loading...</div>
+              </div>
+            ) : currentShare ? (
+              /* Share link created - show copy UI */
+              <>
+                <div style={{
+                  background: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 20,
+                }}>
+                  <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, marginBottom: 8 }}>
+                    SHARE LINK READY
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'center',
+                  }}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${window.location.origin}/share/${currentShare.share_token}`}
+                      style={{
+                        flex: 1,
+                        padding: '10px 12px',
+                        background: '#fff',
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        fontSize: 13,
+                        color: '#333',
+                      }}
+                    />
+                    <button
+                      onClick={handleCopyShareLink}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '10px 16px',
+                        background: shareCopied ? '#22c55e' : '#8b5cf6',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 8,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'background 0.2s',
+                      }}
+                    >
+                      {shareCopied ? <Check size={16} /> : <Copy size={16} />}
+                      {shareCopied ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+
+                {currentShare.view_count > 0 && (
+                  <div style={{
+                    fontSize: 13,
+                    color: '#666',
+                    textAlign: 'center',
+                    marginBottom: 16,
+                  }}>
+                    This link has been viewed {currentShare.view_count} time{currentShare.view_count !== 1 ? 's' : ''}
+                  </div>
+                )}
+
+                <div style={{
+                  background: '#faf5ff',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 20,
+                }}>
+                  <p style={{ margin: 0, fontSize: 14, color: '#6b21a8', lineHeight: 1.6 }}>
+                    Your friend will see your fasting duration, milestone reached, and an invitation to try fasting themselves!
+                    {currentShare.include_notes && ' They can also see your journal entries.'}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowShare(false);
+                    setShareTargetFast(null);
+                    setCurrentShare(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '14px 24px',
+                    background: '#f5f5f5',
+                    color: '#333',
+                    border: 'none',
+                    borderRadius: 12,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Close
+                </button>
+              </>
+            ) : (
+              /* Create share form */
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#333', marginBottom: 6 }}>
+                    Your Name (optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="How should we introduce you?"
+                    value={shareName}
+                    onChange={(e) => setShareName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px',
+                      border: '1px solid #e5e5e5',
+                      borderRadius: 10,
+                      fontSize: 14,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '14px 16px',
+                  background: '#f9fafb',
+                  borderRadius: 12,
+                  marginBottom: 20,
+                }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#333' }}>Include journal entries</div>
+                    <div style={{ fontSize: 12, color: '#666' }}>Share your feelings and notes</div>
+                  </div>
+                  <button
+                    onClick={() => setShareIncludeNotes(!shareIncludeNotes)}
+                    style={{
+                      width: 48,
+                      height: 28,
+                      borderRadius: 14,
+                      background: shareIncludeNotes ? '#8b5cf6' : '#d1d5db',
+                      border: 'none',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      transition: 'background 0.2s',
+                    }}
+                  >
+                    <div style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: '50%',
+                      background: '#fff',
+                      position: 'absolute',
+                      top: 3,
+                      left: shareIncludeNotes ? 23 : 3,
+                      transition: 'left 0.2s',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                    }} />
+                  </button>
+                </div>
+
+                <div style={{
+                  background: '#fffbeb',
+                  border: '1px solid #fcd34d',
+                  borderRadius: 12,
+                  padding: 14,
+                  marginBottom: 20,
+                }}>
+                  <p style={{ margin: 0, fontSize: 13, color: '#92400e', lineHeight: 1.5 }}>
+                    Your friend will see your progress and be encouraged to start their own fasting journey!
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleCreateShare}
+                  disabled={shareLoading}
+                  style={{
+                    width: '100%',
+                    padding: '14px 24px',
+                    background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 12,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    cursor: shareLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    boxShadow: '0 4px 20px rgba(139, 92, 246, 0.3)',
+                  }}
+                >
+                  <Share2 size={18} />
+                  Create Share Link
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
