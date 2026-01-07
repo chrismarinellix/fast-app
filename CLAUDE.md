@@ -6,25 +6,32 @@
 - **Stack**: React 19 + Vite + Supabase + Stripe + Netlify Functions
 - **Pricing**: $5 for 200 days unlimited fasting (10 hours free)
 
-## Critical Knowledge
+## Authentication
 
-### Supabase Auth Issue (SOLVED)
-Default Supabase client config causes auth to hang forever. **Always use minimal config**:
+### Email + Password (Primary)
+- Users sign in with email + password
+- Browser autofill works for saved credentials
+- Toggle between "Sign in" and "Create account" modes
+- `signInWithPassword()` and `signUpWithPassword()` in supabase.ts
 
+### Google OAuth (Alternative)
+- One-click sign in via Google
+- `signInWithGoogle()` in supabase.ts
+
+### Session Persistence
+Sessions are persisted automatically by Supabase client:
 ```typescript
 const supabase = createClient(url, key, {
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: 'fast-app-auth',
   },
 });
 ```
 
-Session handling is manual in `AuthContext.tsx`:
-- Tokens extracted from URL hash
-- Stored in localStorage (`fast-app-session`)
-- Restored on app load
+Profile loading is non-blocking - if it fails, a minimal profile is used so users can proceed.
 
 ### Supabase Keys
 Must use **legacy JWT format** keys (start with `eyJ...`). New format (`sb_...`) doesn't work.
@@ -95,9 +102,31 @@ window.location.href = url;
 
 The checkout function returns both `sessionId` and `url` from the Netlify function.
 
+## Share Feature
+
+Users can share their fasting progress with friends:
+- Share button on active fasts and past fasts in history
+- Options: include name, include journal entries
+- Share via WhatsApp, SMS, or native share (Web Share API)
+- Copy link also available
+- Public share page at `/share/:token`
+
+### Share Database
+```sql
+fast_shares (
+  id, fasting_id, user_id, share_token,
+  sharer_name, include_notes, view_count, created_at
+)
+```
+
+Public access via Supabase functions:
+- `get_shared_fast(token)` - returns fast data, increments view count
+- `get_shared_fast_notes(token)` - returns notes if include_notes is true
+
 ## Database
 
 Supabase PostgreSQL with RLS. Key tables:
 - `profiles` - user data, `paid_until` timestamp
 - `fasting_sessions` - fast records
 - `fasting_notes` - mood/energy logs
+- `fast_shares` - shareable links for fasts
