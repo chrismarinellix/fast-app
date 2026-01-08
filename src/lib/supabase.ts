@@ -57,14 +57,35 @@ export interface FastingNote {
 }
 
 // Auth functions
-export async function signInWithEmail(email: string) {
+export async function signUpWithPassword(email: string, password: string) {
   if (!supabase) throw new Error('Supabase not configured');
 
-  const { error } = await supabase.auth.signInWithOtp({
+  const { data, error } = await supabase.auth.signUp({
     email,
-    options: {
-      emailRedirectTo: `${window.location.origin}/dashboard`,
-    },
+    password,
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function signInWithPassword(email: string, password: string) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function resetPassword(email: string) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`,
   });
 
   if (error) throw error;

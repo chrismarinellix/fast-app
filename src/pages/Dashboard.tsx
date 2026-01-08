@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Play, RotateCcw, CheckCircle2, PenLine, Flame, Brain, Zap,
   Heart, Sparkles, Clock, History,
-  LogOut, TrendingUp, Award, Target, Plus, Timer
+  LogOut, TrendingUp, Award, Target, Plus, Timer, Settings
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,6 +16,9 @@ import { redirectToCheckout, FAST_PRICE_ID } from '../lib/stripe';
 
 // Free hours before payment required
 const FREE_HOURS = 10;
+
+// Admin emails
+const ADMIN_EMAILS = ['chrismarinelli@live.com'];
 
 // Comprehensive fasting milestones with rich detail
 const FASTING_MILESTONES = [
@@ -577,6 +580,27 @@ export function Dashboard() {
             >
               <CheckCircle2 size={16} /> Unlimited
             </div>
+          )}
+
+          {/* Admin link - only show for admin users */}
+          {user?.email && ADMIN_EMAILS.includes(user.email) && (
+            <button
+              onClick={() => navigate('/admin')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                background: 'transparent',
+                color: '#666',
+                border: '1px solid #e5e5e5',
+                borderRadius: 8,
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              <Settings size={16} />
+            </button>
           )}
 
           <button

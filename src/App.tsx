@@ -4,6 +4,7 @@ import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
 import { Blog } from './pages/Blog';
 import { Admin } from './pages/Admin';
+import { ResetPassword } from './pages/ResetPassword';
 import Test from './pages/Test';
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
           <Route path="/terms" element={<Landing />} />
           <Route path="/test" element={<Test />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
