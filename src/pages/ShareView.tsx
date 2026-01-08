@@ -509,9 +509,9 @@ export function ShareView() {
             <span style={{ fontWeight: 600, color: '#22c55e' }}>Fast!</span>
             <span>- Track your fasting journey</span>
           </div>
-          {sharedFast.view_count > 1 && (
+          {(sharedFast.view_count ?? 0) > 1 && (
             <div style={{ marginTop: 8, fontSize: 12 }}>
-              Viewed {sharedFast.view_count} times
+              Viewed {sharedFast.view_count ?? 0} times
             </div>
           )}
         </div>

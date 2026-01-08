@@ -303,3 +303,68 @@ export async function extendFast(fastId: string, additionalHours: number): Promi
   if (error) throw error;
   return data;
 }
+
+// ============ SHARING ============
+
+export interface SharedFastData {
+  id: string;
+  user_id: string;
+  user_name?: string;
+  sharer_name?: string;
+  start_time: string;
+  end_time?: string;
+  target_hours: number;
+  completed: boolean;
+  include_notes?: boolean;
+  view_count?: number;
+}
+
+export interface SharedFastNote {
+  id: string;
+  fasting_id: string;
+  hour_mark: number;
+  mood: 'great' | 'good' | 'okay' | 'tough' | 'difficult';
+  energy_level: number;
+  hunger_level: number;
+  note?: string;
+  created_at: string;
+}
+
+// Get a shared fast by share token (public access)
+export async function getSharedFast(token: string): Promise<SharedFastData | null> {
+  if (!supabase) return null;
+
+  try {
+    // The token is just the fast ID for now (can be enhanced with actual share tokens)
+    const { data, error } = await supabase
+      .from('fasting_sessions')
+      .select('id, user_id, start_time, end_time, target_hours, completed')
+      .eq('id', token)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.error('Error fetching shared fast:', e);
+    return null;
+  }
+}
+
+// Get notes for a shared fast (public access)
+export async function getSharedFastNotes(fastId: string): Promise<SharedFastNote[]> {
+  if (!supabase) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('fasting_notes')
+      .select('*')
+      .eq('fasting_id', fastId)
+      .order('hour_mark', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  } catch (e) {
+    console.error('Error fetching shared fast notes:', e);
+    return [];
+  }
+}
