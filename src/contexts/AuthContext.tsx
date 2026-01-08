@@ -26,47 +26,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const handleSession = async (newSession: Session | null) => {
+    console.log('handleSession called, session:', !!newSession);
     setSession(newSession);
     setUser(newSession?.user ?? null);
 
     if (newSession) {
-      try {
-        // Load or create profile with timeout to prevent freezing
-        const existingProfile = await withTimeout(
-          getUserProfile(newSession.user.id),
-          5000
-        );
-
-        if (!existingProfile) {
-          console.log('Creating new profile for user:', newSession.user.id);
-          const { error } = await supabase
-            .from('profiles')
-            .insert({
-              id: newSession.user.id,
-              email: newSession.user.email,
-              subscription_status: 'free',
-              fasts_completed: 0,
-            });
-
-          if (!error) {
-            const newProfile = await withTimeout(
-              getUserProfile(newSession.user.id),
-              5000
-            );
-            setProfile(newProfile);
-          } else {
-            console.error('Error creating profile:', error);
-          }
-        } else {
-          console.log('Loaded existing profile');
-          setProfile(existingProfile);
-        }
-      } catch (e) {
-        console.error('Profile operation timed out or failed:', e);
-        // Still allow user to proceed - profile will load on refresh
-      }
+      // Load profile in background - don't block auth
+      loadProfileInBackground(newSession.user.id, newSession.user.email || '');
     } else {
       setProfile(null);
+    }
+  };
+
+  const loadProfileInBackground = async (userId: string, email: string) => {
+    try {
+      console.log('Loading profile for:', userId);
+      const existingProfile = await withTimeout(getUserProfile(userId), 3000);
+
+      if (existingProfile) {
+        console.log('Profile loaded');
+        setProfile(existingProfile);
+      } else {
+        console.log('No profile found, creating...');
+        // Try to create profile
+        const { error } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            email: email,
+            subscription_status: 'free',
+            fasts_completed: 0,
+          });
+
+        if (!error) {
+          const newProfile = await withTimeout(getUserProfile(userId), 3000);
+          setProfile(newProfile);
+        } else if (error.code === '23505') {
+          // Profile already exists (race condition), fetch it
+          const existingProfile = await withTimeout(getUserProfile(userId), 3000);
+          setProfile(existingProfile);
+        } else {
+          console.error('Error creating profile:', error);
+        }
+      }
+    } catch (e) {
+      console.error('Profile load failed:', e);
+      // Create a minimal profile so user can proceed
+      setProfile({
+        id: userId,
+        email: email,
+        subscription_status: 'free',
+        fasts_completed: 0,
+        created_at: new Date().toISOString(),
+      });
     }
   };
 
