@@ -304,19 +304,65 @@ export async function extendFast(fastId: string, additionalHours: number): Promi
   return data;
 }
 
+// Adjust the start time of a fast (backdate it)
+export async function adjustFastStartTime(fastId: string, hoursBack: number): Promise<FastingSession | null> {
+  if (!supabase) return null;
+
+  // First get the current fast
+  const { data: currentFast, error: fetchError } = await supabase
+    .from('fasting_sessions')
+    .select('*')
+    .eq('id', fastId)
+    .single();
+
+  if (fetchError || !currentFast) {
+    console.error('Error fetching fast:', fetchError);
+    return null;
+  }
+
+  // Calculate new start time
+  const currentStart = new Date(currentFast.start_time);
+  const newStart = new Date(currentStart.getTime() - (hoursBack * 60 * 60 * 1000));
+
+  // Update with new start time
+  const { data, error } = await supabase
+    .from('fasting_sessions')
+    .update({
+      start_time: newStart.toISOString(),
+    })
+    .eq('id', fastId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 // ============ SHARING ============
+
+export interface FastShare {
+  id: string;
+  fasting_id: string;
+  user_id: string;
+  share_token: string;
+  sharer_name: string;
+  include_notes: boolean;
+  view_count: number;
+  created_at: string;
+}
 
 export interface SharedFastData {
   id: string;
+  fasting_id: string;
   user_id: string;
-  user_name?: string;
-  sharer_name?: string;
+  sharer_name: string;
   start_time: string;
   end_time?: string;
   target_hours: number;
   completed: boolean;
-  include_notes?: boolean;
-  view_count?: number;
+  include_notes: boolean;
+  view_count: number;
+  share_token: string;
 }
 
 export interface SharedFastNote {
@@ -330,20 +376,185 @@ export interface SharedFastNote {
   created_at: string;
 }
 
+// Generate a random share token
+function generateShareToken(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let token = '';
+  for (let i = 0; i < 12; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+}
+
+// Create a share link for a fast
+export async function createShare(
+  fastId: string,
+  userId: string,
+  sharerName: string,
+  includeNotes: boolean
+): Promise<FastShare | null> {
+  if (!supabase) return null;
+
+  try {
+    const shareToken = generateShareToken();
+
+    const { data, error } = await supabase
+      .from('fast_shares')
+      .insert({
+        fasting_id: fastId,
+        user_id: userId,
+        share_token: shareToken,
+        sharer_name: sharerName,
+        include_notes: includeNotes,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.error('Error creating share:', e);
+    return null;
+  }
+}
+
+// Get all shares for a user
+export async function getUserShares(userId: string): Promise<(FastShare & { fast?: FastingSession })[]> {
+  if (!supabase) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('fast_shares')
+      .select(`
+        *,
+        fast:fasting_sessions (*)
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (e) {
+    console.error('Error fetching user shares:', e);
+    return [];
+  }
+}
+
+// Delete a share
+export async function deleteShare(shareId: string, userId: string): Promise<boolean> {
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase
+      .from('fast_shares')
+      .delete()
+      .eq('id', shareId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('Error deleting share:', e);
+    return false;
+  }
+}
+
+// Check if a fast already has a share for this user
+export async function getExistingShare(fastId: string, userId: string): Promise<FastShare | null> {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('fast_shares')
+      .select('*')
+      .eq('fasting_id', fastId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data || null;
+  } catch (e) {
+    console.error('Error checking existing share:', e);
+    return null;
+  }
+}
+
 // Get a shared fast by share token (public access)
 export async function getSharedFast(token: string): Promise<SharedFastData | null> {
   if (!supabase) return null;
 
   try {
-    // The token is just the fast ID for now (can be enhanced with actual share tokens)
-    const { data, error } = await supabase
+    // First try to find in fast_shares table (new way)
+    const { data: shareData, error: shareError } = await supabase
+      .from('fast_shares')
+      .select(`
+        id, fasting_id, user_id, share_token, sharer_name, include_notes, view_count, created_at,
+        fast:fasting_sessions (id, user_id, start_time, end_time, target_hours, completed)
+      `)
+      .eq('share_token', token)
+      .single();
+
+    if (!shareError && shareData && shareData.fast) {
+      // Increment view count
+      await supabase
+        .from('fast_shares')
+        .update({ view_count: (shareData.view_count || 0) + 1 })
+        .eq('id', shareData.id);
+
+      const fast = shareData.fast as {
+        id: string;
+        user_id: string;
+        start_time: string;
+        end_time?: string;
+        target_hours: number;
+        completed: boolean;
+      };
+
+      return {
+        id: shareData.id,
+        fasting_id: fast.id,
+        user_id: fast.user_id,
+        start_time: fast.start_time,
+        end_time: fast.end_time,
+        target_hours: fast.target_hours,
+        completed: fast.completed,
+        sharer_name: shareData.sharer_name,
+        include_notes: shareData.include_notes,
+        view_count: shareData.view_count + 1,
+        share_token: shareData.share_token,
+      };
+    }
+
+    // Fallback: check if token is a direct fast ID (backwards compatibility)
+    const { data: directFast, error: directError } = await supabase
       .from('fasting_sessions')
-      .select('id, user_id, start_time, end_time, target_hours, completed')
+      .select(`
+        id, user_id, start_time, end_time, target_hours, completed,
+        profiles:user_id (name)
+      `)
       .eq('id', token)
       .single();
 
-    if (error) throw error;
-    return data;
+    if (directError || !directFast) return null;
+
+    const profileData = directFast.profiles as { name?: string } | { name?: string }[] | null;
+    const sharerName = Array.isArray(profileData)
+      ? profileData[0]?.name
+      : profileData?.name;
+
+    return {
+      id: token,
+      fasting_id: directFast.id,
+      user_id: directFast.user_id,
+      start_time: directFast.start_time,
+      end_time: directFast.end_time,
+      target_hours: directFast.target_hours,
+      completed: directFast.completed,
+      sharer_name: sharerName || 'Someone',
+      include_notes: true, // Legacy shares show notes
+      view_count: 0,
+      share_token: token,
+    };
   } catch (e) {
     console.error('Error fetching shared fast:', e);
     return null;

@@ -2,15 +2,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Play, RotateCcw, CheckCircle2, PenLine, Flame, Brain, Zap,
-  Heart, Sparkles, Clock, History,
-  LogOut, TrendingUp, Award, Target, Plus, Timer, Settings
+  Heart, Sparkles, Clock, History, Share2, Edit3,
+  LogOut, TrendingUp, Award, Target, Plus, Timer, Settings,
+  Trash2, Link, Eye, Copy, X, Check, MessageSquare
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getCurrentFast, startFast, endFast, getFastingHistory,
   getFastingNotes, addFastingNote, canStartFast, updateUserProfile,
-  signOut, extendFast, type FastingSession, type FastingNote
+  signOut, extendFast, adjustFastStartTime,
+  createShare, getExistingShare, getUserShares, deleteShare,
+  type FastingSession, type FastingNote, type FastShare
 } from '../lib/supabase';
 import { redirectToCheckout, FAST_PRICE_ID } from '../lib/stripe';
 
@@ -204,6 +207,98 @@ const FEELING_OPTIONS = {
 
 const FAST_DURATION = 24 * 60 * 60 * 1000;
 
+// Popular fasting protocols
+const FASTING_PROTOCOLS = [
+  {
+    id: '16:8',
+    name: '16:8 Intermittent',
+    hours: 16,
+    shortDesc: 'Most popular beginner protocol',
+    description: 'Fast for 16 hours, eat within an 8-hour window. This is the most popular and sustainable intermittent fasting method, often done daily.',
+    benefits: ['Easy to maintain', 'Fits most lifestyles', 'Great for beginners', 'Mild ketosis'],
+    popularWith: 'Beginners, busy professionals, daily fasters',
+    icon: 'clock',
+    color: '#3b82f6',
+  },
+  {
+    id: '18:6',
+    name: '18:6 Lean Gains',
+    hours: 18,
+    shortDesc: 'Popular for fat loss & muscle',
+    description: 'Fast for 18 hours with a 6-hour eating window. Popularized by Martin Berkhan for body recomposition. Deeper ketosis while still manageable.',
+    benefits: ['Enhanced fat burning', 'Muscle preservation', 'Better insulin sensitivity', 'Growth hormone boost'],
+    popularWith: 'Fitness enthusiasts, weight lifters, fat loss seekers',
+    icon: 'zap',
+    color: '#8b5cf6',
+  },
+  {
+    id: '20:4',
+    name: '20:4 Warrior Diet',
+    hours: 20,
+    shortDesc: 'One main meal approach',
+    description: 'Fast for 20 hours, eat within 4 hours. Based on ancient warrior eating patterns - small snacks during the day, one large meal at night.',
+    benefits: ['Strong autophagy', 'Simplified eating', 'Mental clarity', 'Deep fat burning'],
+    popularWith: 'Experienced fasters, those seeking simplicity, warriors',
+    icon: 'flame',
+    color: '#f97316',
+  },
+  {
+    id: 'omad',
+    name: 'OMAD (23:1)',
+    hours: 23,
+    shortDesc: 'One Meal A Day',
+    description: 'Eat all your daily calories in one meal. Maximum autophagy benefits while still eating daily. Popular for weight loss and mental clarity.',
+    benefits: ['Maximum daily autophagy', 'Simple routine', 'Strong ketosis', 'Time freedom'],
+    popularWith: 'Experienced fasters, busy professionals, weight loss focused',
+    icon: 'brain',
+    color: '#ec4899',
+  },
+  {
+    id: '24h',
+    name: '24-Hour Fast',
+    hours: 24,
+    shortDesc: 'Full day reset',
+    description: 'A complete 24-hour fast from dinner to dinner or lunch to lunch. Also known as Eat-Stop-Eat method. Great weekly reset for your metabolism.',
+    benefits: ['Full autophagy cycle', 'Metabolic reset', 'Insulin sensitivity', 'Growth hormone surge'],
+    popularWith: 'Weekly fasters, metabolic health seekers, those doing Eat-Stop-Eat',
+    icon: 'sparkles',
+    color: '#22c55e',
+  },
+  {
+    id: '36h',
+    name: '36-Hour Monk Fast',
+    hours: 36,
+    shortDesc: 'Extended healing fast',
+    description: 'Skip an entire day of eating. Often done from dinner one day to breakfast two days later. Deeper cellular repair and significant fat burning.',
+    benefits: ['Deep autophagy', 'Significant ketosis', 'Cellular regeneration', 'Mental breakthrough'],
+    popularWith: 'Spiritual practitioners, experienced fasters, healing seekers',
+    icon: 'heart',
+    color: '#14b8a6',
+  },
+  {
+    id: '48h',
+    name: '48-Hour Extended',
+    hours: 48,
+    shortDesc: 'Two-day deep cleanse',
+    description: 'A two-day fast for maximum autophagy and metabolic benefits. Body fully adapts to fat burning. Often done monthly for deep cellular renewal.',
+    benefits: ['Peak autophagy', 'Stem cell regeneration', 'Full fat adaptation', 'Immune reset'],
+    popularWith: 'Experienced fasters, longevity seekers, monthly reset practitioners',
+    icon: 'sparkles',
+    color: '#a855f7',
+  },
+  {
+    id: '72h',
+    name: '72-Hour Autophagy Max',
+    hours: 72,
+    shortDesc: 'Maximum cellular renewal',
+    description: 'Three-day fast for peak autophagy and immune system regeneration. Research shows stem cell regeneration peaks around 72 hours.',
+    benefits: ['Maximum stem cell renewal', 'Immune system reset', 'Deep cellular cleanup', 'Metabolic transformation'],
+    popularWith: 'Advanced fasters, longevity researchers, quarterly reset practitioners',
+    icon: 'sparkles',
+    color: '#ef4444',
+  },
+];
+
 function MilestoneIcon({ icon, size = 20 }: { icon: string; size?: number }) {
   switch (icon) {
     case 'flame': return <Flame size={size} />;
@@ -230,6 +325,17 @@ export function Dashboard() {
   const [showHistory, setShowHistory] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showExtend, setShowExtend] = useState(false);
+  const [showAdjustTime, setShowAdjustTime] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareName, setShareName] = useState('');
+  const [shareIncludeNotes, setShareIncludeNotes] = useState(true);
+  const [shareToFastId, setShareToFastId] = useState<string | null>(null);
+  const [isCreatingShare, setIsCreatingShare] = useState(false);
+  const [copiedShareToken, setCopiedShareToken] = useState<string | null>(null);
+  const [showShareManager, setShowShareManager] = useState(false);
+  const [userShares, setUserShares] = useState<(FastShare & { fast?: FastingSession })[]>([]);
+  const [showProtocolSelect, setShowProtocolSelect] = useState(false);
+  const [adjustHours, setAdjustHours] = useState(0);
   const [extendHours, setExtendHours] = useState(6);
   const [showCompletionSummary, setShowCompletionSummary] = useState(false);
   const [completedFastSummary, setCompletedFastSummary] = useState<{
@@ -300,20 +406,31 @@ export function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleStartFast = useCallback(async () => {
+  // Load user shares when history is opened
+  useEffect(() => {
+    if (showHistory && user) {
+      getUserShares(user.id).then(shares => {
+        setUserShares(shares);
+      });
+    }
+  }, [showHistory, user]);
+
+  const handleStartFast = useCallback(async (targetHours: number = 24) => {
     if (!user || !profile) return;
 
     // Check if user can start
     const allowed = await canStartFast(profile);
     if (!allowed) {
       setShowUpgrade(true);
+      setShowProtocolSelect(false);
       return;
     }
 
-    const fast = await startFast(user.id, 24);
+    const fast = await startFast(user.id, targetHours);
     setCurrentFast(fast);
     setShowDiary(false);
     setShowHistory(false);
+    setShowProtocolSelect(false);
   }, [user, profile]);
 
   const handleEndFast = useCallback(async () => {
@@ -424,6 +541,21 @@ export function Dashboard() {
     }
   }, [currentFast, extendHours]);
 
+  const handleAdjustStartTime = useCallback(async () => {
+    if (!currentFast || adjustHours <= 0) return;
+
+    try {
+      const updatedFast = await adjustFastStartTime(currentFast.id, adjustHours);
+      if (updatedFast) {
+        setCurrentFast(updatedFast);
+        setShowAdjustTime(false);
+        setAdjustHours(0);
+      }
+    } catch (err) {
+      console.error('Failed to adjust start time:', err);
+    }
+  }, [currentFast, adjustHours]);
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
@@ -441,6 +573,9 @@ export function Dashboard() {
 
   const currentMilestone = FASTING_MILESTONES.filter(m => m.hour <= elapsedHours).pop() || FASTING_MILESTONES[0];
   const nextMilestone = FASTING_MILESTONES.find(m => m.hour > elapsedHours);
+
+  // Find the current protocol based on target hours
+  const currentProtocol = FASTING_PROTOCOLS.find(p => p.hours === targetHours) || FASTING_PROTOCOLS.find(p => p.id === '24h');
 
   // Check if user has active paid access (paid_until in the future)
   const hasPaidAccess = profile?.paid_until && new Date(profile.paid_until) > new Date();
@@ -743,7 +878,7 @@ export function Dashboard() {
                   </div>
 
                   {/* Milestone dots with hover tooltips */}
-                  {FASTING_MILESTONES.filter(m => m.hour > 0 && m.hour <= 24).map(m => {
+                  {FASTING_MILESTONES.filter(m => m.hour > 0 && m.hour <= targetHours).map(m => {
                     const isPassed = elapsedHours >= m.hour;
                     const isCurrent = currentMilestone.hour === m.hour;
                     const isHovered = hoveredMilestone === m.hour;
@@ -754,7 +889,7 @@ export function Dashboard() {
                         onMouseLeave={() => setHoveredMilestone(null)}
                         style={{
                           position: 'absolute',
-                          left: `${(m.hour / 24) * 100}%`,
+                          left: `${(m.hour / targetHours) * 100}%`,
                           top: '50%',
                           transform: 'translate(-50%, -50%)',
                           cursor: 'pointer',
@@ -858,6 +993,59 @@ export function Dashboard() {
                 </div>
               )}
 
+              {/* Protocol Info Card */}
+              {currentProtocol && (
+                <div style={{
+                  background: `${currentProtocol.color}08`,
+                  border: `1px solid ${currentProtocol.color}20`,
+                  borderRadius: 14,
+                  padding: '16px 20px',
+                  marginBottom: 20,
+                  textAlign: 'left',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: `${currentProtocol.color}15`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      color: currentProtocol.color,
+                    }}>
+                      <MilestoneIcon icon={currentProtocol.icon} size={22} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: currentProtocol.color, marginBottom: 4 }}>
+                        {currentProtocol.name}
+                      </div>
+                      <div style={{ fontSize: 13, color: '#555', marginBottom: 8, lineHeight: 1.5 }}>
+                        {currentProtocol.description}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                        {currentProtocol.benefits.map((benefit, i) => (
+                          <span key={i} style={{
+                            fontSize: 11,
+                            padding: '3px 8px',
+                            background: '#fff',
+                            color: '#666',
+                            borderRadius: 6,
+                            border: '1px solid rgba(0,0,0,0.06)',
+                          }}>
+                            {benefit}
+                          </span>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#888' }}>
+                        Popular with: {currentProtocol.popularWith}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Control buttons */}
               <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
@@ -896,6 +1084,49 @@ export function Dashboard() {
                   }}
                 >
                   <History size={18} /> History
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShareName(profile?.name || '');
+                    setShareToFastId(currentFast?.id || null);
+                    setShareIncludeNotes(true);
+                    setShowShareModal(true);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '12px 20px',
+                    background: '#fff',
+                    color: '#8b5cf6',
+                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                    borderRadius: 10,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Share2 size={18} /> Share
+                </button>
+
+                <button
+                  onClick={() => setShowAdjustTime(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '12px 20px',
+                    background: showAdjustTime ? 'rgba(234, 179, 8, 0.15)' : '#fff',
+                    color: '#ca8a04',
+                    border: '1px solid rgba(234, 179, 8, 0.3)',
+                    borderRadius: 10,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Edit3 size={18} /> Adjust
                 </button>
 
                 <button
@@ -1004,6 +1235,111 @@ export function Dashboard() {
                     </div>
                   </div>
 
+                  {/* My Shares Section */}
+                  {userShares.length > 0 && (
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: 12,
+                      }}>
+                        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Link size={18} color="#8b5cf6" /> Active Shares
+                        </h3>
+                        <span style={{ fontSize: 12, color: '#888' }}>{userShares.length} link{userShares.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {userShares.slice(0, 3).map((share) => {
+                          const shareUrl = `${window.location.origin}/share/${share.share_token}`;
+                          const fastStart = share.fast ? new Date(share.fast.start_time) : null;
+                          return (
+                            <div key={share.id} style={{
+                              background: '#fff',
+                              borderRadius: 10,
+                              padding: '12px 14px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 12,
+                            }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#333' }}>
+                                  {fastStart ? format(fastStart, 'MMM d, yyyy') : 'Fast'}
+                                  {share.include_notes && <span style={{ color: '#8b5cf6', marginLeft: 6, fontSize: 11 }}>📝</span>}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span><Eye size={10} /> {share.view_count} view{share.view_count !== 1 ? 's' : ''}</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  await navigator.clipboard.writeText(shareUrl);
+                                  setCopiedShareToken(share.share_token);
+                                  setTimeout(() => setCopiedShareToken(null), 2000);
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '6px 10px',
+                                  background: copiedShareToken === share.share_token ? '#22c55e' : '#f0f0f0',
+                                  color: copiedShareToken === share.share_token ? '#fff' : '#666',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  fontSize: 11,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                }}
+                              >
+                                {copiedShareToken === share.share_token ? <Check size={12} /> : <Copy size={12} />}
+                                {copiedShareToken === share.share_token ? 'Copied!' : 'Copy'}
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (confirm('Delete this share link? Anyone with this link will no longer be able to view it.')) {
+                                    const success = await deleteShare(share.id, user?.id || '');
+                                    if (success) {
+                                      setUserShares(shares => shares.filter(s => s.id !== share.id));
+                                    }
+                                  }
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  padding: '6px 8px',
+                                  background: '#fee2e2',
+                                  color: '#dc2626',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                        {userShares.length > 3 && (
+                          <button
+                            onClick={() => setShowShareManager(true)}
+                            style={{
+                              padding: '10px',
+                              background: 'transparent',
+                              color: '#8b5cf6',
+                              border: '1px dashed #8b5cf6',
+                              borderRadius: 8,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            View all {userShares.length} shares
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700 }}>Past Fasts</h3>
                   {pastFasts.length === 0 ? (
                     <div style={{
@@ -1046,6 +1382,30 @@ export function Dashboard() {
                                 {fast.target_hours && <span style={{ color: '#999' }}> / {fast.target_hours}h goal</span>}
                               </div>
                             </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShareName(profile?.name || '');
+                                setShareToFastId(fast.id);
+                                setShareIncludeNotes(fastNotes.length > 0);
+                                setShowShareModal(true);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '6px 12px',
+                                background: '#f5f3ff',
+                                color: '#7c3aed',
+                                border: 'none',
+                                borderRadius: 8,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <Share2 size={14} /> Share
+                            </button>
                             <div style={{
                               fontSize: 11,
                               padding: '5px 12px',
@@ -1113,7 +1473,7 @@ export function Dashboard() {
                 Ready to start your fasting journey?
               </p>
               <button
-                onClick={handleStartFast}
+                onClick={() => setShowProtocolSelect(true)}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -1129,10 +1489,10 @@ export function Dashboard() {
                   boxShadow: '0 4px 30px rgba(34, 197, 94, 0.35)',
                 }}
               >
-                <Play size={24} /> Start 24h Fast
+                <Play size={24} /> Start Fast
               </button>
               <p style={{ color: '#999', fontSize: 13, marginTop: 16 }}>
-                First 10 hours free • $5 for 200 days unlimited
+                Choose from popular fasting protocols
               </p>
             </>
           )}
@@ -1724,6 +2084,246 @@ export function Dashboard() {
         </div>
       )}
 
+      {/* Adjust Start Time Modal */}
+      {showAdjustTime && currentFast && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          zIndex: 100,
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 20,
+            padding: 36,
+            maxWidth: 400,
+            width: '100%',
+            textAlign: 'center',
+          }}>
+            <div style={{
+              width: 70,
+              height: 70,
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, #eab308, #ca8a04)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 20px',
+            }}>
+              <Edit3 size={36} color="#fff" />
+            </div>
+
+            <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800 }}>Adjust Start Time</h2>
+            <p style={{ color: '#666', marginBottom: 24, fontSize: 15 }}>
+              Forgot to start your fast? Backdate it to when you actually began.
+            </p>
+
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                I started fasting... hours ago
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                {[1, 2, 3, 4, 6, 8].map(hours => (
+                  <button
+                    key={hours}
+                    onClick={() => setAdjustHours(hours)}
+                    style={{
+                      width: 50,
+                      height: 50,
+                      borderRadius: 12,
+                      border: adjustHours === hours ? '2px solid #eab308' : '1px solid rgba(0,0,0,0.1)',
+                      background: adjustHours === hours ? 'rgba(234, 179, 8, 0.1)' : '#fff',
+                      color: adjustHours === hours ? '#ca8a04' : '#333',
+                      fontSize: 18,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    +{hours}
+                  </button>
+                ))}
+              </div>
+              {adjustHours > 0 && (
+                <p style={{ marginTop: 16, fontSize: 14, color: '#666' }}>
+                  New start time: {format(new Date(new Date(currentFast.start_time).getTime() - adjustHours * 60 * 60 * 1000), 'h:mm a')}
+                </p>
+              )}
+            </div>
+
+            <button
+              onClick={handleAdjustStartTime}
+              disabled={adjustHours <= 0}
+              style={{
+                width: '100%',
+                padding: '16px',
+                background: adjustHours > 0 ? 'linear-gradient(135deg, #eab308, #ca8a04)' : '#ccc',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: adjustHours > 0 ? 'pointer' : 'not-allowed',
+                marginBottom: 10,
+              }}
+            >
+              Adjust Start Time
+            </button>
+
+            <button
+              onClick={() => { setShowAdjustTime(false); setAdjustHours(0); }}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: 'transparent',
+                color: '#999',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 14,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Protocol Selection Modal */}
+      {showProtocolSelect && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          zIndex: 100,
+          overflowY: 'auto',
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 20,
+            padding: 28,
+            maxWidth: 600,
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Choose Your Fast</h2>
+              <button
+                onClick={() => setShowProtocolSelect(false)}
+                style={{
+                  width: 36,
+                  height: 36,
+                  background: '#f0f0f0',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontSize: 18,
+                  color: '#666',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ color: '#666', marginBottom: 24, fontSize: 14 }}>
+              Select a fasting protocol that fits your goals. Each protocol has unique benefits.
+            </p>
+
+            <div style={{ display: 'grid', gap: 12 }}>
+              {FASTING_PROTOCOLS.map(protocol => (
+                <button
+                  key={protocol.id}
+                  onClick={() => handleStartFast(protocol.hours)}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '16px 20px',
+                    background: '#fff',
+                    border: `2px solid ${protocol.color}20`,
+                    borderRadius: 14,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = protocol.color;
+                    e.currentTarget.style.background = `${protocol.color}08`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = `${protocol.color}20`;
+                    e.currentTarget.style.background = '#fff';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                    <div style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 12,
+                      background: `${protocol.color}15`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <MilestoneIcon icon={protocol.icon} size={24} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>{protocol.name}</span>
+                        <span style={{
+                          fontSize: 12,
+                          padding: '2px 8px',
+                          background: `${protocol.color}15`,
+                          color: protocol.color,
+                          borderRadius: 10,
+                          fontWeight: 600,
+                        }}>
+                          {protocol.hours}h
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 13, color: '#666', marginBottom: 6 }}>{protocol.shortDesc}</div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {protocol.benefits.slice(0, 3).map((benefit, i) => (
+                          <span key={i} style={{
+                            fontSize: 11,
+                            padding: '2px 8px',
+                            background: '#f5f5f5',
+                            color: '#666',
+                            borderRadius: 6,
+                          }}>
+                            {benefit}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{
+                      color: protocol.color,
+                      fontWeight: 700,
+                      fontSize: 24,
+                      paddingLeft: 10,
+                    }}>
+                      →
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <p style={{ color: '#999', fontSize: 12, marginTop: 16, textAlign: 'center' }}>
+              First 10 hours free • $5 for 200 days unlimited fasting
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Payment Required Overlay - Shows at 10 hours */}
       {needsPayment && (
         <div
@@ -2071,6 +2671,198 @@ export function Dashboard() {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Modal */}
+      {showShareModal && shareToFastId && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          zIndex: 100,
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 20,
+            padding: 36,
+            maxWidth: 420,
+            width: '100%',
+            textAlign: 'center',
+          }}>
+            <div style={{
+              width: 70,
+              height: 70,
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 20px',
+            }}>
+              <Share2 size={36} color="#fff" />
+            </div>
+
+            <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800 }}>Share Your Fast</h2>
+            <p style={{ color: '#666', marginBottom: 24, fontSize: 15 }}>
+              Create a shareable link to show your fasting progress
+            </p>
+
+            <div style={{ marginBottom: 20, textAlign: 'left' }}>
+              <label style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginBottom: 8, display: 'block', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                Your Name
+              </label>
+              <input
+                type="text"
+                value={shareName}
+                onChange={(e) => setShareName(e.target.value)}
+                placeholder="Enter your name"
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  border: '2px solid rgba(139, 92, 246, 0.3)',
+                  borderRadius: 12,
+                  fontSize: 16,
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                autoFocus
+              />
+            </div>
+
+            {/* Include Notes Toggle */}
+            <div style={{ marginBottom: 24, textAlign: 'left' }}>
+              <button
+                onClick={() => setShareIncludeNotes(!shareIncludeNotes)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '14px 16px',
+                  background: shareIncludeNotes ? 'rgba(139, 92, 246, 0.1)' : '#f5f5f5',
+                  border: `2px solid ${shareIncludeNotes ? 'rgba(139, 92, 246, 0.4)' : 'transparent'}`,
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <div style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 6,
+                  background: shareIncludeNotes ? '#8b5cf6' : '#ddd',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s',
+                }}>
+                  {shareIncludeNotes && <Check size={16} color="#fff" />}
+                </div>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: '#333' }}>
+                    Include Journal Entries
+                  </div>
+                  <div style={{ fontSize: 13, color: '#888' }}>
+                    Share your mood, energy, and notes
+                  </div>
+                </div>
+                <MessageSquare size={20} color={shareIncludeNotes ? '#8b5cf6' : '#bbb'} />
+              </button>
+            </div>
+
+            <button
+              onClick={async () => {
+                if (!user || !shareToFastId || !shareName.trim()) return;
+
+                setIsCreatingShare(true);
+                try {
+                  // Save name to profile if changed
+                  if (shareName !== profile?.name) {
+                    await updateUserProfile(user.id, { name: shareName });
+                    await refreshProfile();
+                  }
+
+                  // Check if share already exists for this fast
+                  const existingShare = await getExistingShare(shareToFastId, user.id);
+
+                  let shareToken: string;
+                  if (existingShare) {
+                    // Use existing share token
+                    shareToken = existingShare.share_token;
+                  } else {
+                    // Create new share
+                    const share = await createShare(shareToFastId, user.id, shareName, shareIncludeNotes);
+                    if (!share) throw new Error('Failed to create share');
+                    shareToken = share.share_token;
+                  }
+
+                  // Copy share link
+                  const shareUrl = `${window.location.origin}/share/${shareToken}`;
+                  await navigator.clipboard.writeText(shareUrl);
+
+                  setCopiedShareToken(shareToken);
+                  setTimeout(() => setCopiedShareToken(null), 3000);
+
+                  setShowShareModal(false);
+                  setShareToFastId(null);
+                } catch (e) {
+                  console.error('Failed to create share:', e);
+                  alert('Failed to create share link. Please try again.');
+                } finally {
+                  setIsCreatingShare(false);
+                }
+              }}
+              disabled={!shareName.trim() || isCreatingShare}
+              style={{
+                width: '100%',
+                padding: '16px',
+                background: shareName.trim() && !isCreatingShare ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : '#e5e5e5',
+                color: shareName.trim() && !isCreatingShare ? '#fff' : '#999',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: shareName.trim() && !isCreatingShare ? 'pointer' : 'not-allowed',
+                marginBottom: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+            >
+              {isCreatingShare ? (
+                <>Creating...</>
+              ) : (
+                <>
+                  <Copy size={18} /> Create & Copy Link
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                setShowShareModal(false);
+                setShareToFastId(null);
+              }}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: 'transparent',
+                color: '#999',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 14,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

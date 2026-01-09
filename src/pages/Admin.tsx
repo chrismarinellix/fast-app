@@ -400,6 +400,284 @@ export function Admin() {
             </table>
           </div>
         </div>
+
+        {/* Marketing & Community Section */}
+        <div style={{
+          marginTop: 24,
+          background: '#1a1a1a',
+          borderRadius: 16,
+          padding: 24,
+          border: '1px solid #333',
+        }}>
+          <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: '#fff' }}>
+            Marketing & Community Outreach
+          </h2>
+
+          <div style={{ display: 'grid', gap: 16 }}>
+            {/* Reddit Communities */}
+            <div style={{ background: '#222', borderRadius: 12, padding: 16 }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#ff4500' }}>
+                Reddit Communities
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <a href="https://reddit.com/r/intermittentfasting" target="_blank" rel="noopener noreferrer"
+                   style={{ color: '#6b9eff', fontSize: 14, textDecoration: 'none' }}>
+                  r/intermittentfasting - Main IF community (2M+ members)
+                </a>
+                <a href="https://reddit.com/r/fasting" target="_blank" rel="noopener noreferrer"
+                   style={{ color: '#6b9eff', fontSize: 14, textDecoration: 'none' }}>
+                  r/fasting - Extended fasting discussions
+                </a>
+                <a href="https://reddit.com/r/loseit" target="_blank" rel="noopener noreferrer"
+                   style={{ color: '#6b9eff', fontSize: 14, textDecoration: 'none' }}>
+                  r/loseit - Weight loss community (2M+ members)
+                </a>
+                <a href="https://reddit.com/r/keto" target="_blank" rel="noopener noreferrer"
+                   style={{ color: '#6b9eff', fontSize: 14, textDecoration: 'none' }}>
+                  r/keto - Keto + fasting synergy
+                </a>
+                <a href="https://reddit.com/r/progresspics" target="_blank" rel="noopener noreferrer"
+                   style={{ color: '#6b9eff', fontSize: 14, textDecoration: 'none' }}>
+                  r/progresspics - Before/after transformations
+                </a>
+              </div>
+            </div>
+
+            {/* Other Forums */}
+            <div style={{ background: '#222', borderRadius: 12, padding: 16 }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#22c55e' }}>
+                Other Fasting Forums
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <a href="https://thefastdiet.co.uk/forums" target="_blank" rel="noopener noreferrer"
+                   style={{ color: '#6b9eff', fontSize: 14, textDecoration: 'none' }}>
+                  The Fast Diet Forum - 5:2 fasting community
+                </a>
+                <a href="https://ketogenicforums.com/c/fast" target="_blank" rel="noopener noreferrer"
+                   style={{ color: '#6b9eff', fontSize: 14, textDecoration: 'none' }}>
+                  Ketogenic Forums - Fasting category
+                </a>
+                <a href="https://waterfastingforum.com" target="_blank" rel="noopener noreferrer"
+                   style={{ color: '#6b9eff', fontSize: 14, textDecoration: 'none' }}>
+                  Water Fasting Forum - Extended fasts & OMAD
+                </a>
+              </div>
+            </div>
+
+            {/* Tips */}
+            <div style={{ background: '#222', borderRadius: 12, padding: 16 }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#eab308' }}>
+                How to Participate
+              </h3>
+              <ul style={{ margin: 0, paddingLeft: 20, color: '#aaa', fontSize: 13, lineHeight: 1.8 }}>
+                <li>Be helpful first - answer questions, share tips</li>
+                <li>Share your own fasting journey with the app</li>
+                <li>Post in weekly discussion threads</li>
+                <li>Don't spam - mention the app naturally when relevant</li>
+                <li>Share progress screenshots (with permission)</li>
+                <li>Engage with comments on your posts</li>
+                <li>Cross-post success stories to multiple subreddits</li>
+              </ul>
+            </div>
+
+            {/* Quick Actions */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <a href="https://reddit.com/r/intermittentfasting/submit" target="_blank" rel="noopener noreferrer"
+                 style={{
+                   padding: '10px 16px',
+                   background: '#ff4500',
+                   color: '#fff',
+                   borderRadius: 8,
+                   fontSize: 13,
+                   fontWeight: 600,
+                   textDecoration: 'none',
+                 }}>
+                Post to r/intermittentfasting
+              </a>
+              <a href="https://reddit.com/r/fasting/submit" target="_blank" rel="noopener noreferrer"
+                 style={{
+                   padding: '10px 16px',
+                   background: '#ff4500',
+                   color: '#fff',
+                   borderRadius: 8,
+                   fontSize: 13,
+                   fontWeight: 600,
+                   textDecoration: 'none',
+                 }}>
+                Post to r/fasting
+              </a>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText('https://fast-fasting-app.netlify.app');
+                  alert('App URL copied!');
+                }}
+                style={{
+                  padding: '10px 16px',
+                  background: '#22c55e',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}>
+                Copy App URL
+              </button>
+            </div>
+
+            {/* Post Templates */}
+            <div style={{ marginTop: 16 }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#3b82f6' }}>
+                Ready-to-Use Post Templates
+              </h3>
+
+              {/* Template 1 */}
+              <div style={{ background: '#222', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ color: '#ff4500', fontSize: 13, fontWeight: 600 }}>r/intermittentfasting</span>
+                  <button
+                    onClick={() => {
+                      const title = 'Built a free fasting tracker - would love feedback from this community';
+                      const body = `Hey everyone! 👋
+
+I've been doing IF for a while and got frustrated with overcomplicated fasting apps, so I built my own simple one.
+
+**What it does:**
+- Real-time fasting timer
+- Shows 13 metabolic milestones (ketosis, autophagy, etc.)
+- Journal to track how you're feeling
+- Share your progress with fasting buddies
+
+**It's free to try** (first 10 hours), then just $5 for 200 days unlimited.
+
+Link: https://fast-fasting-app.netlify.app
+
+Would love to know what features you'd find useful. I'm actively developing it based on feedback!
+
+What's your current fasting schedule? I'm doing 18:6 most days.`;
+                      navigator.clipboard.writeText(`TITLE: ${title}\n\nBODY:\n${body}`);
+                      alert('Post copied! Paste into Reddit.');
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#ff4500',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}>
+                    Copy Post
+                  </button>
+                </div>
+                <div style={{ color: '#fff', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                  "Built a free fasting tracker - would love feedback from this community"
+                </div>
+                <div style={{ color: '#888', fontSize: 12 }}>
+                  Friendly intro post asking for feedback - best for first post
+                </div>
+              </div>
+
+              {/* Template 2 */}
+              <div style={{ background: '#222', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ color: '#ff4500', fontSize: 13, fontWeight: 600 }}>r/fasting</span>
+                  <button
+                    onClick={() => {
+                      const title = 'Made a simple fasting tracker that shows what\'s happening in your body at each stage';
+                      const body = `After doing several 24-48 hour fasts, I wanted something that shows me the science of what's happening as I go.
+
+Built this tracker that shows milestones like:
+- Hour 4: Blood sugar stabilizes
+- Hour 8: Entering ketosis
+- Hour 12: Deep ketosis
+- Hour 14: Autophagy begins
+- Hour 16+: Peak fat burning
+
+You can also journal how you're feeling at each stage and share your progress.
+
+Free to try: https://fast-fasting-app.netlify.app
+
+Anyone else find that knowing the science keeps you motivated during tough fasts?`;
+                      navigator.clipboard.writeText(`TITLE: ${title}\n\nBODY:\n${body}`);
+                      alert('Post copied! Paste into Reddit.');
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#ff4500',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}>
+                    Copy Post
+                  </button>
+                </div>
+                <div style={{ color: '#fff', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                  "Made a simple fasting tracker that shows what's happening in your body"
+                </div>
+                <div style={{ color: '#888', fontSize: 12 }}>
+                  Science-focused for extended fasting community
+                </div>
+              </div>
+
+              {/* Template 3 */}
+              <div style={{ background: '#222', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ color: '#ff4500', fontSize: 13, fontWeight: 600 }}>r/loseit</span>
+                  <button
+                    onClick={() => {
+                      const title = 'Intermittent fasting tracker I built to help stay consistent';
+                      const body = `IF has been a game-changer for my weight loss journey. I built a simple app to help track fasts and stay motivated.
+
+Shows you what's happening metabolically as you fast - like when you hit ketosis, when autophagy kicks in, etc. Really helps push through the tough hours knowing your body is doing good work!
+
+Free to try here: https://fast-fasting-app.netlify.app
+
+What fasting schedule has worked best for your weight loss?`;
+                      navigator.clipboard.writeText(`TITLE: ${title}\n\nBODY:\n${body}`);
+                      alert('Post copied! Paste into Reddit.');
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#ff4500',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}>
+                    Copy Post
+                  </button>
+                </div>
+                <div style={{ color: '#fff', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                  "Intermittent fasting tracker I built to help stay consistent"
+                </div>
+                <div style={{ color: '#888', fontSize: 12 }}>
+                  Weight loss focused for r/loseit
+                </div>
+              </div>
+
+              {/* Posting Tips */}
+              <div style={{ background: '#1a2e1a', borderRadius: 12, padding: 16, border: '1px solid #22c55e30' }}>
+                <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: '#22c55e' }}>
+                  Posting Tips
+                </h4>
+                <ul style={{ margin: 0, paddingLeft: 16, color: '#888', fontSize: 12, lineHeight: 1.8 }}>
+                  <li>Post ONE subreddit first, wait 24hrs for feedback</li>
+                  <li>Best times: 9-11am EST (most US users online)</li>
+                  <li>Reply to EVERY comment - engagement helps ranking</li>
+                  <li>Add a screenshot of the app while fasting</li>
+                  <li>Be genuine - you built this for yourself</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
