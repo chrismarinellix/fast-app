@@ -11,9 +11,9 @@ const FASTING_APPS = [
     description: 'Popular app with community features and coaching',
   },
   {
-    name: 'Life Fasting Tracker',
-    url: 'https://lifefastingtracker.app/',
-    description: 'Social fasting app with circles feature',
+    name: 'Ate Food Journal',
+    url: 'https://youate.com/',
+    description: 'Mindful eating and fasting tracker',
   },
   {
     name: 'Fastic',
@@ -30,7 +30,7 @@ const FASTING_APPS = [
 const SCIENCE_RESOURCES = [
   {
     name: 'NIH Intermittent Fasting Research',
-    url: 'https://www.nih.gov/news-events/nih-research-matters/intermittent-fasting-improves-health-markers',
+    url: 'https://www.nih.gov/news-events/nih-research-matters/intermittent-fasting-weight-loss-people-type-2-diabetes',
     description: 'Government research on fasting health benefits',
   },
   {
