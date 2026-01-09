@@ -132,8 +132,9 @@ export function Landing() {
         </div>
         {/* Nav - single set of links */}
         <nav style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <a href="#features" className="mobile-hide" style={{ color: '#666', textDecoration: 'none', fontSize: 14 }}>Features</a>
-          <a href="#pricing" className="mobile-hide" style={{ color: '#666', textDecoration: 'none', fontSize: 14 }}>Pricing</a>
+          <a href="/community" className="mobile-hide" style={{ color: '#666', textDecoration: 'none', fontSize: 14 }}>Community</a>
+          <a href="/resources" className="mobile-hide" style={{ color: '#666', textDecoration: 'none', fontSize: 14 }}>Resources</a>
+          <a href="/blog" className="mobile-hide" style={{ color: '#666', textDecoration: 'none', fontSize: 14 }}>Blog</a>
           <a href="#signup" style={{ color: '#666', textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Login</a>
           <a href="#signup" style={{
             padding: '10px 20px',
@@ -752,13 +753,13 @@ export function Landing() {
               <h4 style={{ color: '#fff', margin: '0 0 12px', fontSize: 14 }}>Product</h4>
               <a href="#features" style={{ display: 'block', color: '#999', textDecoration: 'none', fontSize: 14, marginBottom: 8 }}>Features</a>
               <a href="#pricing" style={{ display: 'block', color: '#999', textDecoration: 'none', fontSize: 14, marginBottom: 8 }}>Pricing</a>
-              <a href="/blog" style={{ display: 'block', color: '#999', textDecoration: 'none', fontSize: 14 }}>Blog</a>
+              <a href="/community" style={{ display: 'block', color: '#999', textDecoration: 'none', fontSize: 14 }}>Community</a>
             </div>
             <div>
               <h4 style={{ color: '#fff', margin: '0 0 12px', fontSize: 14 }}>Resources</h4>
-              <a href="/blog/getting-started" style={{ display: 'block', color: '#999', textDecoration: 'none', fontSize: 14, marginBottom: 8 }}>Getting Started</a>
-              <a href="/blog/science" style={{ display: 'block', color: '#999', textDecoration: 'none', fontSize: 14, marginBottom: 8 }}>The Science</a>
-              <a href="/blog/tips" style={{ display: 'block', color: '#999', textDecoration: 'none', fontSize: 14 }}>Fasting Tips</a>
+              <a href="/resources" style={{ display: 'block', color: '#999', textDecoration: 'none', fontSize: 14, marginBottom: 8 }}>Fasting Resources</a>
+              <a href="/blog" style={{ display: 'block', color: '#999', textDecoration: 'none', fontSize: 14, marginBottom: 8 }}>Blog</a>
+              <a href="/community" style={{ display: 'block', color: '#999', textDecoration: 'none', fontSize: 14 }}>Fasting Protocols</a>
             </div>
             <div>
               <h4 style={{ color: '#fff', margin: '0 0 12px', fontSize: 14 }}>Legal</h4>
