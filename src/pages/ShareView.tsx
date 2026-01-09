@@ -81,8 +81,8 @@ export function ShareView() {
         setSharedFast(fastData);
 
         // Load notes if they're included in the share
-        if (fastData.include_notes) {
-          const notesData = await getSharedFastNotes(fastData.fasting_id);
+        if (fastData.include_notes && token) {
+          const notesData = await getSharedFastNotes(token, fastData.fasting_id);
           setNotes(notesData);
         }
 

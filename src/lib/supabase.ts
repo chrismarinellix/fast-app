@@ -484,7 +484,29 @@ export async function getSharedFast(token: string): Promise<SharedFastData | nul
   if (!supabase) return null;
 
   try {
-    // First try to find in fast_shares table (new way)
+    // Try to use the database function for public access (bypasses RLS)
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc('get_shared_fast', { token: token });
+
+    // The function returns an array of rows
+    if (!rpcError && rpcData && rpcData.length > 0) {
+      const row = rpcData[0];
+      return {
+        id: row.share_id,
+        fasting_id: row.fasting_id,
+        user_id: '', // Not returned by function
+        start_time: row.start_time,
+        end_time: row.end_time,
+        target_hours: row.target_hours,
+        completed: row.completed,
+        sharer_name: row.sharer_name,
+        include_notes: row.include_notes,
+        view_count: row.view_count,
+        share_token: token,
+      };
+    }
+
+    // Fallback: try direct query (works if user is authenticated)
     const { data: shareData, error: shareError } = await supabase
       .from('fast_shares')
       .select(`
@@ -570,18 +592,39 @@ export async function getSharedFast(token: string): Promise<SharedFastData | nul
 }
 
 // Get notes for a shared fast (public access)
-export async function getSharedFastNotes(fastId: string): Promise<SharedFastNote[]> {
+export async function getSharedFastNotes(shareToken: string, fastId?: string): Promise<SharedFastNote[]> {
   if (!supabase) return [];
 
   try {
-    const { data, error } = await supabase
-      .from('fasting_notes')
-      .select('*')
-      .eq('fasting_id', fastId)
-      .order('hour_mark', { ascending: true });
+    // Try RPC function first for public access
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc('get_shared_fast_notes', { token: shareToken });
 
-    if (error) throw error;
-    return data || [];
+    if (!rpcError && rpcData && rpcData.length > 0) {
+      return rpcData.map((row: { hour_mark: number; mood: string; energy_level: number; hunger_level: number; note?: string; created_at: string }) => ({
+        id: '',
+        fasting_id: fastId || '',
+        hour_mark: row.hour_mark,
+        mood: row.mood as SharedFastNote['mood'],
+        energy_level: row.energy_level,
+        hunger_level: row.hunger_level,
+        note: row.note,
+        created_at: row.created_at,
+      }));
+    }
+
+    // Fallback: direct query (works if user is authenticated)
+    if (fastId) {
+      const { data, error } = await supabase
+        .from('fasting_notes')
+        .select('*')
+        .eq('fasting_id', fastId)
+        .order('hour_mark', { ascending: true });
+
+      if (!error && data) return data;
+    }
+
+    return [];
   } catch (e) {
     console.error('Error fetching shared fast notes:', e);
     return [];
