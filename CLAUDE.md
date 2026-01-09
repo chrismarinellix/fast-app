@@ -51,9 +51,10 @@ netlify deploy --prod --skip-functions-cache
 
 | File | Purpose |
 |------|---------|
-| `src/lib/supabase.ts` | Supabase client (minimal auth config) |
+| `src/lib/supabase.ts` | Supabase client, auth, fasting, and share functions |
 | `src/contexts/AuthContext.tsx` | Manual auth session handling |
-| `src/pages/Dashboard.tsx` | Main app - timer, milestones, payment overlay |
+| `src/pages/Dashboard.tsx` | Main app - timer, milestones, sharing, history |
+| `src/pages/ShareView.tsx` | Public share page with live timer |
 | `src/pages/Landing.tsx` | Login page |
 | `src/pages/Test.tsx` | Debug/diagnostic page at /test |
 | `src/lib/stripe.ts` | Stripe checkout with step logging |
@@ -104,24 +105,53 @@ The checkout function returns both `sessionId` and `url` from the Netlify functi
 
 ## Share Feature
 
-Users can share their fasting progress with friends:
-- Share button on active fasts and past fasts in history
-- Options: include name, include journal entries
-- Share via WhatsApp, SMS, or native share (Web Share API)
-- Copy link also available
-- Public share page at `/share/:token`
+Users can share their fasting progress with friends for mutual accountability.
+
+### How It Works
+1. User clicks "Share" on active fast or past fasts in History
+2. Enters their name and chooses whether to include journal entries
+3. Gets a unique share link (12-character token, not the raw fast ID)
+4. Shares via WhatsApp, SMS, native share sheet, or copy link
+5. Link stays active until manually deleted
+
+### Share Modal Flow
+- **Step 1**: Enter name + toggle "Include Journal Entries"
+- **Step 2**: See share link + WhatsApp/SMS/More Options buttons
+
+### ShareView Page (`/share/:token`)
+- Shows live-updating timer (seconds tick in real-time for ongoing fasts)
+- Displays milestone reached, duration, status
+- Shows journal entries if sharer opted in
+- "Share your fast back!" CTA encourages reciprocal sharing
+- "Not fasting yet?" message for viewers who haven't started
+
+### Share Management
+- History panel shows "Active Shares" section with view counts
+- Copy link button on each share
+- Delete button to revoke shares
+- Shares persist until deleted (no expiration)
+
+### Key Functions (supabase.ts)
+- `createShare(fastId, userId, name, includeNotes)` - creates share with unique token
+- `getExistingShare(fastId, userId)` - checks if share already exists
+- `getUserShares(userId)` - gets all shares for a user
+- `deleteShare(shareId, userId)` - revokes a share
+- `getSharedFast(token)` - public access, increments view count
+- `getSharedFastNotes(fastId)` - gets notes if include_notes is true
 
 ### Share Database
 ```sql
 fast_shares (
-  id, fasting_id, user_id, share_token,
-  sharer_name, include_notes, view_count, created_at
+  id UUID PRIMARY KEY,
+  fasting_id UUID REFERENCES fasting_sessions(id),
+  user_id UUID REFERENCES profiles(id),
+  share_token VARCHAR(32) UNIQUE,  -- 12-char random token
+  sharer_name TEXT,
+  include_notes BOOLEAN DEFAULT FALSE,
+  view_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ
 )
 ```
-
-Public access via Supabase functions:
-- `get_shared_fast(token)` - returns fast data, increments view count
-- `get_shared_fast_notes(token)` - returns notes if include_notes is true
 
 ## Database
 
