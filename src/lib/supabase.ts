@@ -501,14 +501,22 @@ export async function getSharedFast(token: string): Promise<SharedFastData | nul
         .update({ view_count: (shareData.view_count || 0) + 1 })
         .eq('id', shareData.id);
 
-      const fast = shareData.fast as {
+      const fastData = shareData.fast as unknown as {
         id: string;
         user_id: string;
         start_time: string;
         end_time?: string;
         target_hours: number;
         completed: boolean;
-      };
+      } | Array<{
+        id: string;
+        user_id: string;
+        start_time: string;
+        end_time?: string;
+        target_hours: number;
+        completed: boolean;
+      }>;
+      const fast = Array.isArray(fastData) ? fastData[0] : fastData;
 
       return {
         id: shareData.id,

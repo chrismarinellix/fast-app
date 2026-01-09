@@ -332,7 +332,6 @@ export function Dashboard() {
   const [shareToFastId, setShareToFastId] = useState<string | null>(null);
   const [isCreatingShare, setIsCreatingShare] = useState(false);
   const [copiedShareToken, setCopiedShareToken] = useState<string | null>(null);
-  const [showShareManager, setShowShareManager] = useState(false);
   const [userShares, setUserShares] = useState<(FastShare & { fast?: FastingSession })[]>([]);
   const [showProtocolSelect, setShowProtocolSelect] = useState(false);
   const [adjustHours, setAdjustHours] = useState(0);
@@ -1320,21 +1319,14 @@ export function Dashboard() {
                           );
                         })}
                         {userShares.length > 3 && (
-                          <button
-                            onClick={() => setShowShareManager(true)}
-                            style={{
-                              padding: '10px',
-                              background: 'transparent',
-                              color: '#8b5cf6',
-                              border: '1px dashed #8b5cf6',
-                              borderRadius: 8,
-                              fontSize: 13,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            View all {userShares.length} shares
-                          </button>
+                          <div style={{
+                            padding: '10px',
+                            textAlign: 'center',
+                            color: '#888',
+                            fontSize: 12,
+                          }}>
+                            +{userShares.length - 3} more shares
+                          </div>
                         )}
                       </div>
                     </div>
