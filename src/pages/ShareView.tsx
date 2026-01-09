@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Flame, Clock, CheckCircle2, Trophy, Zap, Brain,
-  Heart, Sparkles, Share2, Users, Timer, ArrowRight
+  Heart, Sparkles, Share2, Users, Timer, ArrowRight, RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
@@ -54,6 +54,13 @@ export function ShareView() {
   const [notes, setNotes] = useState<SharedFastNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  // Update timer every second for ongoing fasts
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const loadSharedFast = async () => {
@@ -90,26 +97,27 @@ export function ShareView() {
     loadSharedFast();
   }, [token]);
 
-  // Calculate fast duration and milestone
+  // Calculate fast duration and milestone (uses `now` for real-time updates)
   const calculateFastDetails = () => {
-    if (!sharedFast) return { hours: 0, minutes: 0, milestone: FASTING_MILESTONES[0] };
+    if (!sharedFast) return { hours: 0, minutes: 0, seconds: 0, milestone: FASTING_MILESTONES[0] };
 
     const startTime = new Date(sharedFast.start_time).getTime();
     const endTime = sharedFast.end_time
       ? new Date(sharedFast.end_time).getTime()
-      : Date.now();
+      : now;
 
     const durationMs = endTime - startTime;
     const totalHours = durationMs / (1000 * 60 * 60);
     const hours = Math.floor(totalHours);
     const minutes = Math.floor((totalHours - hours) * 60);
+    const seconds = Math.floor((totalHours * 3600 - hours * 3600 - minutes * 60));
 
     const milestone = FASTING_MILESTONES.filter(m => m.hour <= totalHours).pop() || FASTING_MILESTONES[0];
 
-    return { hours, minutes, totalHours, milestone };
+    return { hours, minutes, seconds, totalHours, milestone };
   };
 
-  const { hours, minutes, milestone } = calculateFastDetails();
+  const { hours, minutes, seconds, milestone } = calculateFastDetails();
 
   if (loading) {
     return (
@@ -229,20 +237,38 @@ export function ShareView() {
             marginBottom: 24,
           }}>
             <div style={{
-              fontSize: 'clamp(48px, 12vw, 72px)',
+              fontSize: isOngoing ? 'clamp(40px, 10vw, 60px)' : 'clamp(48px, 12vw, 72px)',
               fontWeight: 800,
               color: milestone?.color || '#22c55e',
               lineHeight: 1,
+              fontVariantNumeric: 'tabular-nums',
             }}>
-              {hours}:{minutes.toString().padStart(2, '0')}
+              {hours}:{minutes.toString().padStart(2, '0')}{isOngoing && `:${seconds.toString().padStart(2, '0')}`}
             </div>
             <div style={{
               fontSize: 14,
               color: '#666',
               marginTop: 4,
             }}>
-              hours : minutes
+              {isOngoing ? 'hours : minutes : seconds' : 'hours : minutes'}
             </div>
+            {isOngoing && (
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                marginTop: 12,
+                padding: '6px 12px',
+                background: 'rgba(34, 197, 94, 0.1)',
+                borderRadius: 20,
+                fontSize: 12,
+                color: '#16a34a',
+                fontWeight: 600,
+              }}>
+                <RefreshCw size={12} style={{ animation: 'spin 2s linear infinite' }} />
+                Live updating
+              </div>
+            )}
           </div>
 
           {/* Milestone Reached */}
@@ -427,13 +453,14 @@ export function ShareView() {
           </div>
         )}
 
-        {/* CTA - Try Fasting */}
+        {/* CTA - Share Back */}
         <div style={{
-          background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+          background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
           borderRadius: 24,
-          padding: 32,
+          padding: 28,
           textAlign: 'center',
           color: 'white',
+          marginBottom: 16,
         }}>
           <div style={{
             display: 'flex',
@@ -441,42 +468,45 @@ export function ShareView() {
             marginBottom: 16,
           }}>
             <div style={{
-              width: 64,
-              height: 64,
+              width: 56,
+              height: 56,
               background: 'rgba(255,255,255,0.2)',
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-              <Users size={32} />
+              <Share2 size={28} />
             </div>
           </div>
           <h2 style={{
-            fontSize: 24,
+            fontSize: 22,
             fontWeight: 800,
             margin: '0 0 8px 0',
           }}>
-            Ready to try fasting?
+            Share your fast back!
           </h2>
           <p style={{
-            fontSize: 15,
+            fontSize: 14,
             opacity: 0.9,
-            margin: '0 0 24px 0',
+            margin: '0 0 20px 0',
             lineHeight: 1.5,
           }}>
-            Join {sharerName} and thousands of others on their fasting journey. Track your progress, log your feelings, and unlock health benefits.
+            {isOngoing
+              ? `Let ${sharerName} see your progress too. Start fasting together and keep each other accountable!`
+              : `Start your own fast and share it with ${sharerName}. Fasting buddies achieve more together!`
+            }
           </p>
           <button
             onClick={() => navigate('/')}
             style={{
               width: '100%',
-              padding: '16px 32px',
+              padding: '14px 28px',
               background: 'white',
-              color: '#16a34a',
+              color: '#7c3aed',
               border: 'none',
-              borderRadius: 16,
-              fontSize: 18,
+              borderRadius: 14,
+              fontSize: 16,
               fontWeight: 700,
               cursor: 'pointer',
               display: 'flex',
@@ -488,8 +518,27 @@ export function ShareView() {
             onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
             onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
           >
-            <Flame size={20} /> Start Your Fast
+            <Flame size={18} /> Start & Share Your Fast
           </button>
+        </div>
+
+        {/* Not fasting yet message */}
+        <div style={{
+          background: 'white',
+          borderRadius: 16,
+          padding: 20,
+          textAlign: 'center',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.06)',
+        }}>
+          <p style={{
+            margin: 0,
+            fontSize: 14,
+            color: '#666',
+            lineHeight: 1.5,
+          }}>
+            <strong style={{ color: '#333' }}>Not fasting yet?</strong> No worries!
+            You can still cheer {sharerName} on and start your own fast whenever you're ready.
+          </p>
         </div>
 
         {/* Footer */}

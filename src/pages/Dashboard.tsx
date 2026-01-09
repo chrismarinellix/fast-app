@@ -2715,7 +2715,7 @@ export function Dashboard() {
                 </div>
                 <div>
                   <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Share Your Fast</h2>
-                  <p style={{ margin: 0, fontSize: 13, color: '#666' }}>Inspire your friends!</p>
+                  <p style={{ margin: 0, fontSize: 13, color: '#666' }}>Keep each other motivated!</p>
                 </div>
               </div>
               <button
@@ -2916,6 +2916,22 @@ export function Dashboard() {
             ) : (
               /* Initial form to create share */
               <>
+                {/* Explanation */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 20,
+                }}>
+                  <p style={{ margin: 0, fontSize: 14, color: '#5b21b6', lineHeight: 1.5 }}>
+                    Send this link to a friend and they'll see your fasting progress in real-time.
+                    They can share their fast back with you too!
+                  </p>
+                  <p style={{ margin: '8px 0 0', fontSize: 13, color: '#7c3aed' }}>
+                    This link stays active until you delete it.
+                  </p>
+                </div>
+
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginBottom: 8, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
                     Your Name
