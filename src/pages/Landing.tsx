@@ -547,7 +547,7 @@ export function Landing() {
             Start free. Unlock unlimited.
           </h2>
           <p style={{ textAlign: 'center', color: '#666', marginBottom: 48, fontSize: 18 }}>
-            First 10 hours free. Just $5 for 200 days of unlimited fasting.
+            First 10 hours free. Just $5 every 6 months for unlimited fasting.
           </p>
 
           {/* Single pricing card */}
@@ -608,15 +608,15 @@ export function Landing() {
                   <Sparkles size={24} color="#fff" />
                 </div>
                 <div>
-                  <div style={{ fontSize: 22, fontWeight: 700 }}>200 Days Unlimited</div>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>6 Months Unlimited</div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                     <span style={{ color: '#16a34a', fontWeight: 800, fontSize: 28 }}>$5</span>
-                    <span style={{ color: '#999', fontSize: 14 }}>for 200 days</span>
+                    <span style={{ color: '#999', fontSize: 14 }}>/ 6 months</span>
                   </div>
                 </div>
               </div>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px' }}>
-                {['Unlimited fasts for 200 days', 'All 13 metabolic milestones', 'Extend any fast past 24h', 'Journal & progress history'].map((item) => (
+                {['Unlimited fasts for 6 months', 'All 13 metabolic milestones', 'Extend any fast past 24h', 'Auto-renews for convenience'].map((item) => (
                   <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, fontSize: 14, color: '#555' }}>
                     <Check size={16} color="#22c55e" />
                     {item}
@@ -651,7 +651,7 @@ export function Landing() {
             {[
               { icon: '🆓', text: '10 hours free' },
               { icon: '💵', text: '$5 to unlock' },
-              { icon: '🔄', text: 'Pay per fast' },
+              { icon: '🔄', text: 'Auto-renews' },
             ].map(({ icon, text }) => (
               <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 24 }}>{icon}</span>

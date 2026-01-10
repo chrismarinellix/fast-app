@@ -2022,7 +2022,7 @@ export function Dashboard() {
 
             <h2 style={{ margin: '0 0 8px', fontSize: 28, fontWeight: 800 }}>Unlock Unlimited Fasting</h2>
             <p style={{ color: '#666', marginBottom: 28, fontSize: 16, lineHeight: 1.5 }}>
-              You've used your free 10 hours. Unlock 200 days of unlimited fasting!
+              You've used your free 10 hours. Subscribe for unlimited fasting!
             </p>
 
             <div style={{
@@ -2033,7 +2033,7 @@ export function Dashboard() {
             }}>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
                 <span style={{ fontSize: 48, fontWeight: 800, color: '#16a34a' }}>$5</span>
-                <span style={{ color: '#666', fontSize: 16 }}>/ 200 days</span>
+                <span style={{ color: '#666', fontSize: 16 }}>/ 6 months</span>
               </div>
               <p style={{ margin: 0, color: '#666', fontSize: 14 }}>
                 Unlimited fasts with all features
@@ -2041,7 +2041,7 @@ export function Dashboard() {
             </div>
 
             <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', textAlign: 'left' }}>
-              {['Unlimited fasts for 200 days', 'Track 13 metabolic milestones', 'Journal your experience', 'Extend any fast past 24h'].map(item => (
+              {['Unlimited fasts for 6 months', 'Track 13 metabolic milestones', 'Journal your experience', 'Auto-renews for convenience'].map(item => (
                 <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, fontSize: 14, color: '#555' }}>
                   <CheckCircle2 size={18} color="#22c55e" />
                   {item}
@@ -2065,7 +2065,7 @@ export function Dashboard() {
                 marginBottom: 12,
               }}
             >
-              Unlock 200 Days - $5
+              Subscribe - $5 / 6 months
             </button>
 
             <button
@@ -2439,7 +2439,7 @@ export function Dashboard() {
             </div>
 
             <p style={{ color: '#999', fontSize: 12, marginTop: 16, textAlign: 'center' }}>
-              First 10 hours free • $5 for 200 days unlimited fasting
+              First 10 hours free • $5/6 months for unlimited fasting
             </p>
           </div>
         </div>
@@ -2488,7 +2488,7 @@ export function Dashboard() {
             </h2>
             <p style={{ color: '#666', marginBottom: 24, fontSize: 18, lineHeight: 1.5 }}>
               You've reached <strong style={{ color: '#22c55e' }}>10 hours</strong> of fasting.
-              <br />Unlock unlimited fasting for 200 days.
+              <br />Subscribe for unlimited fasting.
             </p>
 
             <div style={{
@@ -2500,7 +2500,7 @@ export function Dashboard() {
               <div style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>Unlimited fasting for</div>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: 8 }}>
                 <span style={{ fontSize: 56, fontWeight: 800, color: '#16a34a' }}>$5</span>
-                <span style={{ fontSize: 18, color: '#666' }}>/ 200 days</span>
+                <span style={{ fontSize: 18, color: '#666' }}>/ 6 months</span>
               </div>
               <div style={{ fontSize: 14, color: '#888', marginTop: 8 }}>
                 Unlimited fasts • Extend anytime • Full features
@@ -2511,9 +2511,9 @@ export function Dashboard() {
               <div style={{ fontSize: 13, color: '#999', marginBottom: 12 }}>What you'll unlock:</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
-                  'Unlimited fasts for 200 days',
+                  'Unlimited fasts for 6 months',
                   'All 13 metabolic milestones',
-                  'Journal & track your experience',
+                  'Auto-renews for convenience',
                   'Extend any fast past 24 hours',
                 ].map(item => (
                   <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -2540,7 +2540,7 @@ export function Dashboard() {
                 marginBottom: 16,
               }}
             >
-              Unlock 200 Days - $5
+              Subscribe - $5 / 6 months
             </button>
 
             <p style={{ fontSize: 12, color: '#999', margin: 0 }}>

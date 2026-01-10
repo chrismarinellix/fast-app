@@ -92,7 +92,15 @@ netlify deploy --prod --skip-functions-cache  # Deploy
 
 ## Payment Logic
 
-**Important**: `canStartFast()` in `supabase.ts` checks `paid_until` FIRST before subscription status. This allows users who paid $5 (200 days) to start unlimited fasts even with `subscription_status: 'free'`.
+**Subscription Model**: $5 every 6 months (recurring). Users get 10 free hours, then must subscribe.
+
+**Important**: `canStartFast()` in `supabase.ts` checks `paid_until` FIRST before subscription status. Active subscribers have `paid_until` set to their current subscription period end date.
+
+**Webhook Events Handled**:
+- `checkout.session.completed` - saves Stripe customer ID
+- `customer.subscription.created/updated` - updates `paid_until` from subscription period
+- `invoice.payment_succeeded` - renews `paid_until` on successful recurring payment
+- `customer.subscription.deleted` - marks subscription as expired
 
 ## Stripe Integration
 

@@ -452,7 +452,7 @@ export function Community() {
               Start free, unlock unlimited
             </h3>
             <p style={{ margin: '0 0 20px', color: '#666', fontSize: 16 }}>
-              Your first 10 hours are completely free. Then just $5 for 200 days of unlimited fasting.
+              Your first 10 hours are completely free. Then just $5 every 6 months for unlimited fasting.
             </p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap' }}>
               <div>
@@ -461,7 +461,7 @@ export function Community() {
               </div>
               <div>
                 <div style={{ fontSize: 32, fontWeight: 800, color: '#16a34a' }}>$5</div>
-                <div style={{ fontSize: 13, color: '#666' }}>200 days unlimited</div>
+                <div style={{ fontSize: 13, color: '#666' }}>6 months unlimited</div>
               </div>
             </div>
           </div>

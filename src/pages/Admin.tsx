@@ -262,7 +262,7 @@ export function Admin() {
           marginBottom: 24,
         }}>
           <h3 style={{ margin: '0 0 16px 0', fontSize: 16, fontWeight: 700, color: '#fff' }}>
-            Grant 200 Days Access
+            Grant 6 Months Access
           </h3>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <input
@@ -548,7 +548,7 @@ I've been doing IF for a while and got frustrated with overcomplicated fasting a
 - Journal to track how you're feeling
 - Share your progress with fasting buddies
 
-**It's free to try** (first 10 hours), then just $5 for 200 days unlimited.
+**It's free to try** (first 10 hours), then just $5/6 months for unlimited fasting.
 
 Link: https://fast-fasting-app.netlify.app
 

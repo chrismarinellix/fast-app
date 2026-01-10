@@ -30,7 +30,7 @@ export interface UserProfile {
   subscription_plan?: 'monthly' | 'yearly';
   stripe_customer_id?: string;
   fasts_completed: number;
-  paid_until?: string; // ISO timestamp - $5 gives 200 days of unlimited fasts
+  paid_until?: string; // ISO timestamp - subscription period end date
   created_at: string;
 }
 
