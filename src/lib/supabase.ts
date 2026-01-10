@@ -671,10 +671,16 @@ export async function createShareGroup(
   userId: string,
   displayName: string
 ): Promise<{ group: ShareGroup; membership: ShareGroupMember } | null> {
-  if (!supabase) return null;
+  if (!supabase) {
+    console.error('createShareGroup: supabase not initialized');
+    return null;
+  }
+
+  console.log('createShareGroup called:', { name, userId, displayName });
 
   try {
     const inviteCode = generateInviteCode();
+    console.log('Generated invite code:', inviteCode);
 
     // Create the group
     const { data: group, error: groupError } = await supabase
@@ -686,6 +692,8 @@ export async function createShareGroup(
       })
       .select()
       .single();
+
+    console.log('Group insert result:', { group, groupError });
 
     if (groupError) throw groupError;
 
@@ -700,6 +708,8 @@ export async function createShareGroup(
       })
       .select()
       .single();
+
+    console.log('Membership insert result:', { membership, memberError });
 
     if (memberError) throw memberError;
 

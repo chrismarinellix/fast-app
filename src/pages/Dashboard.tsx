@@ -1099,7 +1099,7 @@ export function Dashboard() {
                   onClick={() => {
                     setShareName(profile?.name || '');
                     setShareToFastId(currentFast?.id || null);
-                    setShareIncludeNotes(true);
+                    setShareIncludeNotes(false);
                     setShowShareModal(true);
                   }}
                   style={{
@@ -1117,6 +1117,25 @@ export function Dashboard() {
                   }}
                 >
                   <Share2 size={18} /> Share
+                </button>
+
+                <button
+                  onClick={() => setShowCreateGroupModal(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '12px 20px',
+                    background: '#fff',
+                    color: '#8b5cf6',
+                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                    borderRadius: 10,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Users size={18} /> Groups
                 </button>
 
                 <button
@@ -3307,7 +3326,9 @@ export function Dashboard() {
                 setIsCreatingGroup(true);
                 try {
                   const displayName = profile?.name || 'Member';
+                  console.log('Creating group with:', { name: newGroupName.trim(), userId: user.id, displayName });
                   const result = await createShareGroup(newGroupName.trim(), user.id, displayName);
+                  console.log('Create group result:', result);
                   if (result) {
                     // Refresh groups
                     const groups = await getUserGroups(user.id);
@@ -3316,10 +3337,12 @@ export function Dashboard() {
                     setNewGroupName('');
                     // Navigate to the new group
                     navigate(`/group/${result.group.invite_code}`);
+                  } else {
+                    alert('Failed to create group. Check browser console for details.');
                   }
                 } catch (e) {
                   console.error('Failed to create group:', e);
-                  alert('Failed to create group. Please try again.');
+                  alert('Failed to create group: ' + (e instanceof Error ? e.message : 'Unknown error'));
                 } finally {
                   setIsCreatingGroup(false);
                 }
