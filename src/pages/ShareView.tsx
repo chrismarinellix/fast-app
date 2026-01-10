@@ -200,15 +200,16 @@ export function ShareView() {
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            padding: '8px 12px',
-            background: 'rgba(255, 255, 255, 0.8)',
-            border: 'none',
+            padding: '10px 16px',
+            background: '#fff',
+            border: '1px solid #e5e5e5',
             borderRadius: 10,
             fontSize: 14,
-            fontWeight: 500,
-            color: '#666',
+            fontWeight: 600,
+            color: '#166534',
             cursor: 'pointer',
-            marginBottom: 16,
+            marginBottom: 20,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
           }}
         >
           <Flame size={16} color="#22c55e" />
