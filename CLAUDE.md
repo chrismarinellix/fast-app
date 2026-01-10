@@ -4,7 +4,7 @@
 
 - **Live URL**: https://fast-fasting-app.netlify.app
 - **Stack**: React 19 + Vite + Supabase + Stripe + Netlify Functions
-- **Pricing**: $5 recurring subscription (~200 days/6 months) for unlimited fasting (10 hours free)
+- **Pricing**: $5 every 6 months (recurring subscription) for unlimited fasting (10 hours free)
 
 ## Authentication
 

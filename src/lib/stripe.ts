@@ -12,7 +12,7 @@ export function getStripe() {
   return stripePromise;
 }
 
-// Price ID for $5 recurring subscription (200 days / ~6 months)
+// Price ID for $5 every 6 months recurring subscription
 export const FAST_PRICE_ID = import.meta.env.VITE_STRIPE_FAST_PRICE_ID || '';
 
 // Legacy - keeping for backwards compatibility
