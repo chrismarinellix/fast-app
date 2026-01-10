@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Flame, Clock, CheckCircle2, Trophy, Zap, Brain,
-  Heart, Sparkles, Share2, Timer, ArrowRight, RefreshCw, ArrowLeft
+  Heart, Sparkles, Share2, Timer, ArrowRight, RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
