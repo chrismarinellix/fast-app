@@ -2850,7 +2850,7 @@ export function Dashboard() {
                   <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
                     {shareMode === 'group' || shareMode === 'group-done' ? 'Create Group' : 'Share'}
                   </h2>
-                  <p style={{ margin: 0, fontSize: 13, color: '#666' }}>Keep each other motivated!</p>
+                  <p style={{ margin: 0, fontSize: 13, color: '#666' }}>Choose how to share your progress</p>
                 </div>
               </div>
               <button
@@ -3014,8 +3014,8 @@ export function Dashboard() {
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 17, fontWeight: 700, color: '#333' }}>Fast Together</div>
-                        <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>Create or join a group for ongoing accountability</div>
-                        <div style={{ fontSize: 11, color: '#8b5cf6', marginTop: 4, fontWeight: 600 }}>Best for regular fasting partners</div>
+                        <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>See each other's progress live</div>
+                        <div style={{ fontSize: 11, color: '#8b5cf6', marginTop: 4, fontWeight: 600 }}>Two-way - perfect for fasting buddies</div>
                       </div>
                       <ChevronRight size={20} color="#8b5cf6" />
                     </div>
@@ -3037,7 +3037,7 @@ export function Dashboard() {
                       <Link size={20} color="#666" />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 15, fontWeight: 600, color: '#333' }}>Share Link</div>
-                        <div style={{ fontSize: 12, color: '#888' }}>One-time link for this fast</div>
+                        <div style={{ fontSize: 12, color: '#888' }}>They see your fast (one-way)</div>
                       </div>
                       <ChevronRight size={18} color="#ccc" />
                     </div>
