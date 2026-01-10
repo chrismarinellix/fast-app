@@ -630,3 +630,320 @@ export async function getSharedFastNotes(shareToken: string, fastId?: string): P
     return [];
   }
 }
+
+// ============ SHARE GROUPS ============
+
+export interface ShareGroup {
+  id: string;
+  name: string;
+  invite_code: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface ShareGroupMember {
+  id: string;
+  group_id: string;
+  user_id: string;
+  display_name: string;
+  include_notes: boolean;
+  joined_at: string;
+}
+
+export interface GroupMemberWithFast extends ShareGroupMember {
+  current_fast?: FastingSession;
+  recent_fasts?: FastingSession[];
+}
+
+// Generate a random invite code for groups
+function generateInviteCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// Create a new fasting group
+export async function createShareGroup(
+  name: string,
+  userId: string,
+  displayName: string
+): Promise<{ group: ShareGroup; membership: ShareGroupMember } | null> {
+  if (!supabase) return null;
+
+  try {
+    const inviteCode = generateInviteCode();
+
+    // Create the group
+    const { data: group, error: groupError } = await supabase
+      .from('share_groups')
+      .insert({
+        name,
+        invite_code: inviteCode,
+        created_by: userId,
+      })
+      .select()
+      .single();
+
+    if (groupError) throw groupError;
+
+    // Add creator as first member
+    const { data: membership, error: memberError } = await supabase
+      .from('share_group_members')
+      .insert({
+        group_id: group.id,
+        user_id: userId,
+        display_name: displayName,
+        include_notes: false,
+      })
+      .select()
+      .single();
+
+    if (memberError) throw memberError;
+
+    return { group, membership };
+  } catch (e) {
+    console.error('Error creating share group:', e);
+    return null;
+  }
+}
+
+// Get group by invite code (for joining)
+export async function getGroupByInviteCode(inviteCode: string): Promise<ShareGroup | null> {
+  if (!supabase) return null;
+
+  try {
+    // Try RPC function first (bypasses RLS for public invite links)
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc('get_group_by_invite_code', { code: inviteCode.toUpperCase() });
+
+    if (!rpcError && rpcData && rpcData.length > 0) {
+      return rpcData[0];
+    }
+
+    // Fallback: direct query (works if authenticated)
+    const { data, error } = await supabase
+      .from('share_groups')
+      .select('*')
+      .eq('invite_code', inviteCode.toUpperCase())
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data || null;
+  } catch (e) {
+    console.error('Error fetching group by invite code:', e);
+    return null;
+  }
+}
+
+// Join a group
+export async function joinShareGroup(
+  groupId: string,
+  userId: string,
+  displayName: string,
+  includeNotes: boolean = false
+): Promise<ShareGroupMember | null> {
+  if (!supabase) return null;
+
+  try {
+    // Check if already a member
+    const { data: existing } = await supabase
+      .from('share_group_members')
+      .select('*')
+      .eq('group_id', groupId)
+      .eq('user_id', userId)
+      .single();
+
+    if (existing) return existing; // Already a member
+
+    const { data, error } = await supabase
+      .from('share_group_members')
+      .insert({
+        group_id: groupId,
+        user_id: userId,
+        display_name: displayName,
+        include_notes: includeNotes,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.error('Error joining group:', e);
+    return null;
+  }
+}
+
+// Leave a group
+export async function leaveShareGroup(groupId: string, userId: string): Promise<boolean> {
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase
+      .from('share_group_members')
+      .delete()
+      .eq('group_id', groupId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('Error leaving group:', e);
+    return false;
+  }
+}
+
+// Get all groups a user belongs to
+export async function getUserGroups(userId: string): Promise<(ShareGroupMember & { group: ShareGroup })[]> {
+  if (!supabase) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('share_group_members')
+      .select(`
+        *,
+        group:share_groups (*)
+      `)
+      .eq('user_id', userId)
+      .order('joined_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (e) {
+    console.error('Error fetching user groups:', e);
+    return [];
+  }
+}
+
+// Get all members of a group with their current fasts
+export async function getGroupMembers(groupId: string): Promise<GroupMemberWithFast[]> {
+  if (!supabase) return [];
+
+  try {
+    // Get all members
+    const { data: members, error: memberError } = await supabase
+      .from('share_group_members')
+      .select('*')
+      .eq('group_id', groupId)
+      .order('joined_at', { ascending: true });
+
+    if (memberError) throw memberError;
+    if (!members || members.length === 0) return [];
+
+    // Get current/recent fasts for each member
+    const userIds = members.map(m => m.user_id);
+
+    const { data: fasts, error: fastsError } = await supabase
+      .from('fasting_sessions')
+      .select('*')
+      .in('user_id', userIds)
+      .order('start_time', { ascending: false });
+
+    if (fastsError) throw fastsError;
+
+    // Group fasts by user
+    const fastsByUser: Record<string, FastingSession[]> = {};
+    (fasts || []).forEach(fast => {
+      if (!fastsByUser[fast.user_id]) fastsByUser[fast.user_id] = [];
+      fastsByUser[fast.user_id].push(fast);
+    });
+
+    // Combine members with their fasts
+    return members.map(member => {
+      const userFasts = fastsByUser[member.user_id] || [];
+      const currentFast = userFasts.find(f => !f.end_time);
+      const recentFasts = userFasts.filter(f => f.end_time).slice(0, 3);
+
+      return {
+        ...member,
+        current_fast: currentFast,
+        recent_fasts: recentFasts,
+      };
+    });
+  } catch (e) {
+    console.error('Error fetching group members:', e);
+    return [];
+  }
+}
+
+// Get group details including members (for group view page)
+export async function getGroupDetails(inviteCode: string): Promise<{
+  group: ShareGroup;
+  members: GroupMemberWithFast[];
+} | null> {
+  if (!supabase) return null;
+
+  try {
+    const group = await getGroupByInviteCode(inviteCode);
+    if (!group) return null;
+
+    const members = await getGroupMembers(group.id);
+    return { group, members };
+  } catch (e) {
+    console.error('Error fetching group details:', e);
+    return null;
+  }
+}
+
+// Update member settings (display name, include notes)
+export async function updateGroupMemberSettings(
+  groupId: string,
+  userId: string,
+  settings: { display_name?: string; include_notes?: boolean }
+): Promise<boolean> {
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase
+      .from('share_group_members')
+      .update(settings)
+      .eq('group_id', groupId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('Error updating member settings:', e);
+    return false;
+  }
+}
+
+// Delete a group (only creator can do this)
+export async function deleteShareGroup(groupId: string, userId: string): Promise<boolean> {
+  if (!supabase) return false;
+
+  try {
+    // Verify user is the creator
+    const { data: group } = await supabase
+      .from('share_groups')
+      .select('created_by')
+      .eq('id', groupId)
+      .single();
+
+    if (!group || group.created_by !== userId) {
+      console.error('Only the group creator can delete the group');
+      return false;
+    }
+
+    // Delete all members first
+    await supabase
+      .from('share_group_members')
+      .delete()
+      .eq('group_id', groupId);
+
+    // Delete the group
+    const { error } = await supabase
+      .from('share_groups')
+      .delete()
+      .eq('id', groupId);
+
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('Error deleting group:', e);
+    return false;
+  }
+}

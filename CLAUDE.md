@@ -55,6 +55,7 @@ netlify deploy --prod --skip-functions-cache
 | `src/contexts/AuthContext.tsx` | Manual auth session handling |
 | `src/pages/Dashboard.tsx` | Main app - timer, milestones, sharing, history |
 | `src/pages/ShareView.tsx` | Public share page with live timer |
+| `src/pages/GroupView.tsx` | Group fasting page for viewing group members' fasts |
 | `src/pages/Landing.tsx` | Login page |
 | `src/pages/Test.tsx` | Debug/diagnostic page at /test |
 | `src/lib/stripe.ts` | Stripe checkout with step logging |
@@ -115,7 +116,7 @@ Users can share their fasting progress with friends for mutual accountability.
 5. Link stays active until manually deleted
 
 ### Share Modal Flow
-- **Step 1**: Enter name + toggle "Include Journal Entries"
+- **Step 1**: Enter name + toggle "Include Your Journey" (defaults to OFF)
 - **Step 2**: See share link + WhatsApp/SMS/More Options buttons
 
 ### ShareView Page (`/share/:token`)
@@ -153,6 +154,115 @@ fast_shares (
 )
 ```
 
+## Share Groups Feature
+
+Users can create fasting groups to fast together with friends. All group members can see each other's fasting progress in real-time.
+
+### How It Works
+1. User clicks "Create Group" in History panel → enters group name
+2. Gets redirected to group page with unique invite code
+3. Shares invite link with friends (WhatsApp, SMS, copy link)
+4. Friends join via invite link → enter their name → see group
+5. All members can see who's currently fasting with live timers
+
+### GroupView Page (`/group/:inviteCode`)
+- Shows group name and member count
+- "Currently Fasting" section with live timers for active fasts
+- "Group Members" section showing members not currently fasting
+- Join/Leave buttons for group management
+- Invite link copying for sharing
+- "Start Fasting" CTA for members not currently fasting
+
+### Group Management (Dashboard History Panel)
+- "Fasting Groups" section shows all groups user belongs to
+- "Create Group" button opens modal
+- View button navigates to group page
+- Invite button copies invite link
+
+### Key Functions (supabase.ts)
+- `createShareGroup(name, userId, displayName)` - creates group with 8-char invite code
+- `getGroupByInviteCode(inviteCode)` - fetches group by code
+- `joinShareGroup(groupId, userId, displayName)` - joins a group
+- `leaveShareGroup(groupId, userId)` - leaves a group
+- `getUserGroups(userId)` - gets all groups for a user
+- `getGroupMembers(groupId)` - gets members with their current/recent fasts
+- `getGroupDetails(inviteCode)` - gets group + members for group view
+- `deleteShareGroup(groupId, userId)` - deletes group (creator only)
+
+### Share Groups Database
+```sql
+-- Run this SQL in Supabase SQL Editor to create the tables
+
+-- Groups table
+CREATE TABLE share_groups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL,
+  invite_code VARCHAR(12) UNIQUE NOT NULL,
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Group memberships
+CREATE TABLE share_group_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id UUID REFERENCES share_groups(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES profiles(id),
+  display_name VARCHAR(100) NOT NULL,
+  include_notes BOOLEAN DEFAULT FALSE,
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(group_id, user_id)
+);
+
+-- Enable RLS
+ALTER TABLE share_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE share_group_members ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for share_groups
+CREATE POLICY "Users can view groups they belong to" ON share_groups
+  FOR SELECT USING (
+    id IN (SELECT group_id FROM share_group_members WHERE user_id = auth.uid())
+  );
+
+CREATE POLICY "Users can view groups by invite code" ON share_groups
+  FOR SELECT USING (true);
+
+CREATE POLICY "Authenticated users can create groups" ON share_groups
+  FOR INSERT WITH CHECK (auth.uid() = created_by);
+
+CREATE POLICY "Group creators can delete their groups" ON share_groups
+  FOR DELETE USING (auth.uid() = created_by);
+
+-- RLS Policies for share_group_members
+CREATE POLICY "Users can view group members" ON share_group_members
+  FOR SELECT USING (true);
+
+CREATE POLICY "Users can join groups" ON share_group_members
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can leave groups" ON share_group_members
+  FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own membership" ON share_group_members
+  FOR UPDATE USING (auth.uid() = user_id);
+
+-- Optional: RPC function for public access to group by invite code
+CREATE OR REPLACE FUNCTION get_group_by_invite_code(code TEXT)
+RETURNS TABLE (
+  id UUID,
+  name VARCHAR(100),
+  invite_code VARCHAR(12),
+  created_by UUID,
+  created_at TIMESTAMPTZ
+) SECURITY DEFINER AS $$
+BEGIN
+  RETURN QUERY
+  SELECT g.id, g.name, g.invite_code, g.created_by, g.created_at
+  FROM share_groups g
+  WHERE UPPER(g.invite_code) = UPPER(code);
+END;
+$$ LANGUAGE plpgsql;
+```
+
 ## Database
 
 Supabase PostgreSQL with RLS. Key tables:
@@ -160,3 +270,5 @@ Supabase PostgreSQL with RLS. Key tables:
 - `fasting_sessions` - fast records
 - `fasting_notes` - mood/energy logs
 - `fast_shares` - shareable links for fasts
+- `share_groups` - fasting groups
+- `share_group_members` - group memberships

@@ -8,6 +8,7 @@ import { Community } from './pages/Community';
 import { Admin } from './pages/Admin';
 import { ResetPassword } from './pages/ResetPassword';
 import { ShareView } from './pages/ShareView';
+import { GroupView } from './pages/GroupView';
 import Test from './pages/Test';
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
           <Route path="/admin" element={<Admin />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/share/:token" element={<ShareView />} />
+          <Route path="/group/:inviteCode" element={<GroupView />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

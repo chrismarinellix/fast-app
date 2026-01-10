@@ -4,7 +4,7 @@ import {
   Play, RotateCcw, CheckCircle2, PenLine, Flame, Brain, Zap,
   Heart, Sparkles, Clock, History, Share2, Edit3,
   LogOut, TrendingUp, Award, Target, Plus, Timer, Settings,
-  Trash2, Link, Eye, Copy, X, Check, MessageSquare
+  Trash2, Link, Eye, Copy, X, Check, MessageSquare, Users, UserPlus
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,7 +13,9 @@ import {
   getFastingNotes, addFastingNote, canStartFast, updateUserProfile,
   signOut, extendFast, adjustFastStartTime,
   createShare, getExistingShare, getUserShares, deleteShare,
-  type FastingSession, type FastingNote, type FastShare
+  createShareGroup, getUserGroups,
+  type FastingSession, type FastingNote, type FastShare,
+  type ShareGroup, type ShareGroupMember
 } from '../lib/supabase';
 import { redirectToCheckout, FAST_PRICE_ID } from '../lib/stripe';
 
@@ -328,11 +330,16 @@ export function Dashboard() {
   const [showAdjustTime, setShowAdjustTime] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareName, setShareName] = useState('');
-  const [shareIncludeNotes, setShareIncludeNotes] = useState(true);
+  const [shareIncludeNotes, setShareIncludeNotes] = useState(false);
   const [shareToFastId, setShareToFastId] = useState<string | null>(null);
   const [isCreatingShare, setIsCreatingShare] = useState(false);
   const [copiedShareToken, setCopiedShareToken] = useState<string | null>(null);
   const [userShares, setUserShares] = useState<(FastShare & { fast?: FastingSession })[]>([]);
+  const [userGroups, setUserGroups] = useState<(ShareGroupMember & { group: ShareGroup })[]>([]);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [copiedGroupCode, setCopiedGroupCode] = useState<string | null>(null);
   const [showProtocolSelect, setShowProtocolSelect] = useState(false);
   const [adjustHours, setAdjustHours] = useState(0);
   const [extendHours, setExtendHours] = useState(6);
@@ -405,11 +412,14 @@ export function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Load user shares when history is opened
+  // Load user shares and groups when history is opened
   useEffect(() => {
     if (showHistory && user) {
       getUserShares(user.id).then(shares => {
         setUserShares(shares);
+      });
+      getUserGroups(user.id).then(groups => {
+        setUserGroups(groups);
       });
     }
   }, [showHistory, user]);
@@ -1232,6 +1242,125 @@ export function Dashboard() {
                       <div style={{ fontSize: 22, fontWeight: 700 }}>{Math.round(totalHours)}h</div>
                       <div style={{ fontSize: 10, color: '#666' }}>Fasted</div>
                     </div>
+                  </div>
+
+                  {/* My Groups Section */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: 12,
+                    }}>
+                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Users size={18} color="#8b5cf6" /> Fasting Groups
+                      </h3>
+                      <button
+                        onClick={() => setShowCreateGroupModal(true)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '6px 12px',
+                          background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Plus size={14} /> Create Group
+                      </button>
+                    </div>
+                    {userGroups.length === 0 ? (
+                      <div style={{
+                        background: '#fff',
+                        borderRadius: 12,
+                        padding: '20px',
+                        textAlign: 'center',
+                      }}>
+                        <Users size={32} color="#ddd" style={{ marginBottom: 8 }} />
+                        <p style={{ color: '#888', fontSize: 13, margin: 0 }}>
+                          Create a group to fast together with friends
+                        </p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {userGroups.map((membership) => {
+                          const groupUrl = `${window.location.origin}/group/${membership.group.invite_code}`;
+                          return (
+                            <div key={membership.id} style={{
+                              background: '#fff',
+                              borderRadius: 10,
+                              padding: '12px 14px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 12,
+                            }}>
+                              <div style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 10,
+                                background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}>
+                                <Users size={18} color="#fff" />
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: '#333' }}>
+                                  {membership.group.name}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#888' }}>
+                                  Code: {membership.group.invite_code}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => navigate(`/group/${membership.group.invite_code}`)}
+                                style={{
+                                  padding: '6px 12px',
+                                  background: '#f5f3ff',
+                                  color: '#7c3aed',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                View
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  await navigator.clipboard.writeText(groupUrl);
+                                  setCopiedGroupCode(membership.group.invite_code);
+                                  setTimeout(() => setCopiedGroupCode(null), 2000);
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '6px 10px',
+                                  background: copiedGroupCode === membership.group.invite_code ? '#22c55e' : '#f0f0f0',
+                                  color: copiedGroupCode === membership.group.invite_code ? '#fff' : '#666',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  fontSize: 11,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                }}
+                              >
+                                {copiedGroupCode === membership.group.invite_code ? <Check size={12} /> : <Copy size={12} />}
+                                {copiedGroupCode === membership.group.invite_code ? 'Copied!' : 'Invite'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* My Shares Section */}
@@ -2977,7 +3106,7 @@ export function Dashboard() {
                   </div>
                   <div style={{ flex: 1, textAlign: 'left' }}>
                     <div style={{ fontSize: 15, fontWeight: 600, color: '#333' }}>
-                      Include Journal Entries
+                      Include Your Journey
                     </div>
                     <div style={{ fontSize: 13, color: '#888' }}>
                       Share your mood, energy & notes
@@ -3069,6 +3198,177 @@ export function Dashboard() {
                 </button>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Create Group Modal */}
+      {showCreateGroupModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          zIndex: 100,
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 24,
+            padding: 28,
+            maxWidth: 420,
+            width: '100%',
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 20,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Users size={24} color="#fff" />
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Create Fasting Group</h2>
+                  <p style={{ margin: 0, fontSize: 13, color: '#666' }}>Fast together with friends</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCreateGroupModal(false);
+                  setNewGroupName('');
+                }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: '#f5f5f5',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <X size={18} color="#666" />
+              </button>
+            </div>
+
+            {/* Explanation */}
+            <div style={{
+              background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 20,
+            }}>
+              <p style={{ margin: 0, fontSize: 14, color: '#5b21b6', lineHeight: 1.5 }}>
+                Create a group and invite friends to fast together. Everyone can see each other's progress in real-time.
+              </p>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginBottom: 8, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                Group Name
+              </label>
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="e.g., Office Fasters, Family Challenge"
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  border: '2px solid rgba(139, 92, 246, 0.3)',
+                  borderRadius: 12,
+                  fontSize: 16,
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                autoFocus
+              />
+            </div>
+
+            <button
+              onClick={async () => {
+                if (!user || !newGroupName.trim()) return;
+
+                setIsCreatingGroup(true);
+                try {
+                  const displayName = profile?.name || 'Member';
+                  const result = await createShareGroup(newGroupName.trim(), user.id, displayName);
+                  if (result) {
+                    // Refresh groups
+                    const groups = await getUserGroups(user.id);
+                    setUserGroups(groups);
+                    setShowCreateGroupModal(false);
+                    setNewGroupName('');
+                    // Navigate to the new group
+                    navigate(`/group/${result.group.invite_code}`);
+                  }
+                } catch (e) {
+                  console.error('Failed to create group:', e);
+                  alert('Failed to create group. Please try again.');
+                } finally {
+                  setIsCreatingGroup(false);
+                }
+              }}
+              disabled={!newGroupName.trim() || isCreatingGroup}
+              style={{
+                width: '100%',
+                padding: '16px',
+                background: newGroupName.trim() && !isCreatingGroup ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : '#e5e5e5',
+                color: newGroupName.trim() && !isCreatingGroup ? '#fff' : '#999',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: newGroupName.trim() && !isCreatingGroup ? 'pointer' : 'not-allowed',
+                marginBottom: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+            >
+              {isCreatingGroup ? (
+                <>Creating...</>
+              ) : (
+                <>
+                  <UserPlus size={18} /> Create Group
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                setShowCreateGroupModal(false);
+                setNewGroupName('');
+              }}
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: 'transparent',
+                color: '#999',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 14,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
