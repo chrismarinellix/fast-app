@@ -372,6 +372,9 @@ export function GroupView() {
                 const duration = formatDuration(fast, now);
                 const totalHours = duration.hours + duration.minutes / 60;
                 const milestone = getMilestoneForHours(totalHours);
+                const targetHours = fast.target_hours || 24;
+                const progress = Math.min(100, (totalHours / targetHours) * 100);
+                const nextMilestone = FASTING_MILESTONES.find(m => m.hour > totalHours);
 
                 return (
                   <div
@@ -432,6 +435,67 @@ export function GroupView() {
                     </div>
                     <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
                       Started {format(new Date(fast.start_time), 'h:mm a')}
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div style={{ marginTop: 16 }}>
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 6,
+                      }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: milestone.color }}>
+                          {Math.round(progress)}% Complete
+                        </span>
+                        <span style={{ fontSize: 11, color: '#888' }}>
+                          Goal: {targetHours}h
+                        </span>
+                      </div>
+                      <div style={{ position: 'relative' }}>
+                        {/* Track */}
+                        <div style={{
+                          width: '100%',
+                          height: 8,
+                          background: 'rgba(0,0,0,0.08)',
+                          borderRadius: 4,
+                        }}>
+                          {/* Fill */}
+                          <div style={{
+                            width: `${progress}%`,
+                            height: '100%',
+                            background: progress >= 100
+                              ? '#22c55e'
+                              : `linear-gradient(90deg, ${milestone.color}, ${nextMilestone?.color || '#22c55e'})`,
+                            borderRadius: 4,
+                            transition: 'width 1s linear',
+                          }} />
+                        </div>
+                        {/* Milestone dots */}
+                        {FASTING_MILESTONES.filter(m => m.hour > 0 && m.hour <= targetHours).map(m => {
+                          const isPassed = totalHours >= m.hour;
+                          return (
+                            <div
+                              key={m.hour}
+                              style={{
+                                position: 'absolute',
+                                left: `${(m.hour / targetHours) * 100}%`,
+                                top: '50%',
+                                transform: 'translate(-50%, -50%)',
+                              }}
+                            >
+                              <div style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: '50%',
+                                background: isPassed ? m.color : '#e5e5e5',
+                                border: '2px solid #fff',
+                                boxShadow: isPassed ? `0 1px 4px ${m.color}40` : '0 1px 2px rgba(0,0,0,0.1)',
+                              }} />
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 );
