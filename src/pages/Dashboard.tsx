@@ -4,7 +4,7 @@ import {
   Play, RotateCcw, CheckCircle2, PenLine, Flame, Brain, Zap,
   Heart, Sparkles, Clock, History, Share2, Edit3,
   LogOut, TrendingUp, Award, Target, Plus, Timer, Settings,
-  Trash2, Link, Eye, Copy, X, Check, MessageSquare, Users, ChevronRight
+  Trash2, Link, Eye, Copy, X, Check, MessageSquare, Users
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
