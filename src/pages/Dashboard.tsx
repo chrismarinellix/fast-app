@@ -2850,7 +2850,7 @@ export function Dashboard() {
                   <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
                     {shareMode === 'group' || shareMode === 'group-done' ? 'Create Group' : 'Share'}
                   </h2>
-                  <p style={{ margin: 0, fontSize: 13, color: '#666' }}>Choose how to share your progress</p>
+                  <p style={{ margin: 0, fontSize: 13, color: '#666' }}>See each other's fasts live</p>
                 </div>
               </div>
               <button
@@ -2877,60 +2877,6 @@ export function Dashboard() {
               </button>
             </div>
 
-            {/* Mode Tabs - only show on choose/link/group modes */}
-            {(shareMode === 'choose' || shareMode === 'link' || shareMode === 'group') && (
-              <div style={{
-                display: 'flex',
-                gap: 8,
-                marginBottom: 20,
-                background: '#f5f5f5',
-                padding: 4,
-                borderRadius: 12,
-              }}>
-                <button
-                  onClick={() => setShareMode('link')}
-                  style={{
-                    flex: 1,
-                    padding: '10px 16px',
-                    background: shareMode === 'link' ? '#fff' : 'transparent',
-                    color: shareMode === 'link' ? '#8b5cf6' : '#666',
-                    border: 'none',
-                    borderRadius: 8,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                    boxShadow: shareMode === 'link' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
-                  }}
-                >
-                  <Link size={16} /> Share Link
-                </button>
-                <button
-                  onClick={() => setShareMode('group')}
-                  style={{
-                    flex: 1,
-                    padding: '10px 16px',
-                    background: shareMode === 'group' ? '#fff' : 'transparent',
-                    color: shareMode === 'group' ? '#8b5cf6' : '#666',
-                    border: 'none',
-                    borderRadius: 8,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                    boxShadow: shareMode === 'group' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
-                  }}
-                >
-                  <Users size={16} /> Create Group
-                </button>
-              </div>
-            )}
 
             {/* Choose Mode - Initial state */}
             {shareMode === 'choose' && (
@@ -2987,62 +2933,53 @@ export function Dashboard() {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {/* Groups - Primary option */}
-                  <button
-                    onClick={() => setShareMode('group')}
-                    style={{
-                      padding: '20px',
-                      background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
-                      border: '2px solid rgba(139, 92, 246, 0.4)',
-                      borderRadius: 16,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <div style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 12,
+                {/* Create new group - only option now (always two-way) */}
+                {userGroups.length === 0 && (
+                  <div style={{
+                    background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+                    borderRadius: 16,
+                    padding: 20,
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 14,
+                      background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 16px',
+                    }}>
+                      <Users size={28} color="#fff" />
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#333', marginBottom: 8 }}>
+                      Fast Together
+                    </div>
+                    <div style={{ fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 1.5 }}>
+                      Create a group and invite friends. You'll see each other's progress live - always two-way!
+                    </div>
+                    <button
+                      onClick={() => setShareMode('group')}
+                      style={{
+                        padding: '14px 28px',
                         background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-                        display: 'flex',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 12,
+                        fontSize: 16,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                      }}>
-                        <Users size={24} color="#fff" />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 17, fontWeight: 700, color: '#333' }}>Fast Together</div>
-                        <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>See each other's progress live</div>
-                        <div style={{ fontSize: 11, color: '#8b5cf6', marginTop: 4, fontWeight: 600 }}>Two-way - perfect for fasting buddies</div>
-                      </div>
-                      <ChevronRight size={20} color="#8b5cf6" />
-                    </div>
-                  </button>
-
-                  {/* Share Link - Secondary option */}
-                  <button
-                    onClick={() => setShareMode('link')}
-                    style={{
-                      padding: '16px 20px',
-                      background: '#fafafa',
-                      border: '1px solid #e5e5e5',
-                      borderRadius: 12,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <Link size={20} color="#666" />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: '#333' }}>Share Link</div>
-                        <div style={{ fontSize: 12, color: '#888' }}>They see your fast (one-way)</div>
-                      </div>
-                      <ChevronRight size={18} color="#ccc" />
-                    </div>
-                  </button>
-                </div>
+                        gap: 8,
+                      }}
+                    >
+                      <Plus size={18} />
+                      Create Group
+                    </button>
+                  </div>
+                )}
               </>
             )}
 
