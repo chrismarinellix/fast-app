@@ -3111,7 +3111,7 @@ export function Dashboard() {
                   <button
                     onClick={() => {
                       const shareUrl = `${window.location.origin}/share/${copiedShareToken}`;
-                      const text = `Check out my fasting progress! I'm using Fast! to track my journey.`;
+                      const text = `I'm ${Math.floor(elapsedHours)}+ hours into my fast! Watch my progress live and maybe join me?`;
                       window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + shareUrl)}`, '_blank');
                     }}
                     style={{
@@ -3138,7 +3138,7 @@ export function Dashboard() {
                   <button
                     onClick={() => {
                       const shareUrl = `${window.location.origin}/share/${copiedShareToken}`;
-                      const text = `Check out my fasting progress! ${shareUrl}`;
+                      const text = `I'm ${Math.floor(elapsedHours)}+ hours into my fast! Watch my progress live: ${shareUrl}`;
                       window.open(`sms:?body=${encodeURIComponent(text)}`, '_self');
                     }}
                     style={{
@@ -3169,8 +3169,8 @@ export function Dashboard() {
                       const shareUrl = `${window.location.origin}/share/${copiedShareToken}`;
                       try {
                         await navigator.share({
-                          title: 'My Fasting Progress',
-                          text: 'Check out my fasting journey!',
+                          title: 'Watch My Fast Live',
+                          text: `I'm ${Math.floor(elapsedHours)}+ hours in! Join me?`,
                           url: shareUrl,
                         });
                       } catch (e) {
@@ -3640,7 +3640,7 @@ export function Dashboard() {
                   <button
                     onClick={() => {
                       const shareUrl = `${window.location.origin}/group/${createdGroupCode}`;
-                      const text = `Join my fasting group on Fast! Let's fast together and keep each other motivated.`;
+                      const text = `Want to fast with me? I created a group called "${newGroupName}" - tap to join and we can see each other's progress live!`;
                       window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + shareUrl)}`, '_blank');
                     }}
                     style={{
@@ -3667,7 +3667,7 @@ export function Dashboard() {
                   <button
                     onClick={() => {
                       const shareUrl = `${window.location.origin}/group/${createdGroupCode}`;
-                      const text = `Join my fasting group! ${shareUrl}`;
+                      const text = `Fast with me! Join "${newGroupName}" and we'll keep each other accountable: ${shareUrl}`;
                       window.open(`sms:?body=${encodeURIComponent(text)}`, '_self');
                     }}
                     style={{
