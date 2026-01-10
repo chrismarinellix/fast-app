@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Flame, Clock, CheckCircle2, Trophy, Zap, Brain,
-  Heart, Sparkles, Share2, Timer, ArrowRight, RefreshCw
+  Heart, Sparkles, Share2, Timer, ArrowRight, RefreshCw, ArrowLeft
 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
@@ -193,6 +193,28 @@ export function ShareView() {
         maxWidth: 500,
         margin: '0 auto',
       }}>
+        {/* Back/Home Button */}
+        <button
+          onClick={() => navigate('/')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 12px',
+            background: 'rgba(255, 255, 255, 0.8)',
+            border: 'none',
+            borderRadius: 10,
+            fontSize: 14,
+            fontWeight: 500,
+            color: '#666',
+            cursor: 'pointer',
+            marginBottom: 16,
+          }}
+        >
+          <Flame size={16} color="#22c55e" />
+          Try Fast!
+        </button>
+
         {/* Header */}
         <div style={{
           textAlign: 'center',

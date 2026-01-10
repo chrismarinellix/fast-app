@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Flame, Clock, CheckCircle2, Trophy, Zap, Brain,
   Heart, Sparkles, Users, Timer, ArrowRight, RefreshCw,
-  Copy, Check, UserPlus, X
+  Copy, Check, UserPlus, X, ArrowLeft
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -228,6 +228,28 @@ export function GroupView() {
       padding: '24px 16px',
     }}>
       <div style={{ maxWidth: 600, margin: '0 auto' }}>
+        {/* Back Button */}
+        <button
+          onClick={() => navigate('/')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 12px',
+            background: 'rgba(255, 255, 255, 0.8)',
+            border: 'none',
+            borderRadius: 10,
+            fontSize: 14,
+            fontWeight: 500,
+            color: '#666',
+            cursor: 'pointer',
+            marginBottom: 16,
+          }}
+        >
+          <ArrowLeft size={16} />
+          Back to Dashboard
+        </button>
+
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{

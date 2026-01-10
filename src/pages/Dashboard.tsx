@@ -3667,7 +3667,7 @@ export function Dashboard() {
                   <button
                     onClick={() => {
                       const shareUrl = `${window.location.origin}/group/${createdGroupCode}`;
-                      const text = `Fast with me! Join "${newGroupName}" and we'll keep each other accountable: ${shareUrl}`;
+                      const text = `Fast with me! Join "${newGroupName}" - we can see each other's progress live: ${shareUrl}`;
                       window.open(`sms:?body=${encodeURIComponent(text)}`, '_self');
                     }}
                     style={{
