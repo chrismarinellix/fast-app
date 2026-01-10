@@ -31,51 +31,76 @@ export async function handler(event: any) {
       case 'checkout.session.completed': {
         const session = stripeEvent.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.userId;
-        const fastId = session.metadata?.fastId;
         const customerId = session.customer as string;
 
         console.log('Checkout completed!');
         console.log('userId:', userId);
-        console.log('fastId:', fastId);
         console.log('customerId:', customerId);
+        console.log('mode:', session.mode);
 
-        // Handle $5 for 200 days of unlimited fasts
-        if (userId) {
-          // Calculate 200 days from now
-          const paidUntil = new Date();
-          paidUntil.setDate(paidUntil.getDate() + 200);
-
-          console.log('Updating profile with paid_until:', paidUntil.toISOString());
-
+        // For subscription mode, the subscription webhook will handle paid_until
+        // Just save the customer ID here
+        if (userId && customerId) {
           const { error } = await supabase
             .from('profiles')
             .update({
-              paid_until: paidUntil.toISOString(),
-              stripe_customer_id: customerId || undefined,
+              stripe_customer_id: customerId,
+              subscription_status: 'active',
             })
             .eq('id', userId);
 
           if (error) {
             console.error('Error updating profile:', error);
           } else {
-            console.log('Profile updated successfully!');
+            console.log('Profile customer ID saved!');
           }
-        } else {
-          console.error('No userId in session metadata!');
         }
         break;
       }
 
+      case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = stripeEvent.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
+        const userId = subscription.metadata?.userId;
 
-        const status = subscription.status === 'active' ? 'active' : 'cancelled';
+        console.log('Subscription event:', stripeEvent.type);
+        console.log('customerId:', customerId);
+        console.log('userId:', userId);
+        console.log('status:', subscription.status);
 
-        await supabase
+        // Get current period end from subscription
+        const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+        const status = subscription.status === 'active' ? 'active' :
+                       subscription.status === 'canceled' ? 'cancelled' : 'free';
+
+        console.log('current_period_end:', currentPeriodEnd.toISOString());
+
+        // Update by customer ID (more reliable)
+        const { error } = await supabase
           .from('profiles')
-          .update({ subscription_status: status })
+          .update({
+            subscription_status: status,
+            paid_until: currentPeriodEnd.toISOString(),
+          })
           .eq('stripe_customer_id', customerId);
+
+        if (error) {
+          console.error('Error updating subscription:', error);
+          // Try by userId if customerId fails
+          if (userId) {
+            await supabase
+              .from('profiles')
+              .update({
+                subscription_status: status,
+                paid_until: currentPeriodEnd.toISOString(),
+                stripe_customer_id: customerId,
+              })
+              .eq('id', userId);
+          }
+        } else {
+          console.log('Subscription updated successfully!');
+        }
         break;
       }
 
@@ -83,10 +108,49 @@ export async function handler(event: any) {
         const subscription = stripeEvent.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
 
+        console.log('Subscription deleted for customer:', customerId);
+
         await supabase
           .from('profiles')
           .update({ subscription_status: 'expired' })
           .eq('stripe_customer_id', customerId);
+        break;
+      }
+
+      case 'invoice.payment_succeeded': {
+        // Handle successful recurring payment
+        const invoice = stripeEvent.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+        const subscriptionId = invoice.subscription as string;
+
+        console.log('Invoice paid for customer:', customerId);
+
+        if (subscriptionId) {
+          // Fetch subscription to get updated period
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+
+          await supabase
+            .from('profiles')
+            .update({
+              paid_until: currentPeriodEnd.toISOString(),
+              subscription_status: 'active',
+            })
+            .eq('stripe_customer_id', customerId);
+
+          console.log('Renewed paid_until to:', currentPeriodEnd.toISOString());
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = stripeEvent.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+
+        console.log('Payment failed for customer:', customerId);
+
+        // Don't immediately expire - Stripe will retry
+        // Just log for now, subscription.updated will handle status
         break;
       }
     }

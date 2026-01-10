@@ -12,18 +12,39 @@ export async function handler(event: any) {
   try {
     const { priceId, userId, email, fastId, successUrl, cancelUrl } = JSON.parse(event.body);
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment', // One-time payment for $5 per fast
+    // Check if we have an existing customer
+    let customerId: string | undefined;
+    const existingCustomers = await stripe.customers.list({ email, limit: 1 });
+    if (existingCustomers.data.length > 0) {
+      customerId = existingCustomers.data[0].id;
+    }
+
+    const sessionConfig: Stripe.Checkout.SessionCreateParams = {
+      mode: 'subscription', // Recurring subscription
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
-      customer_email: email,
       success_url: successUrl,
       cancel_url: cancelUrl,
+      subscription_data: {
+        metadata: {
+          userId,
+          fastId,
+        },
+      },
       metadata: {
         userId,
-        fastId, // Pass fastId to mark as paid in webhook
+        fastId,
       },
-    });
+    };
+
+    // Use existing customer or create new one with email
+    if (customerId) {
+      sessionConfig.customer = customerId;
+    } else {
+      sessionConfig.customer_email = email;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig);
 
     return {
       statusCode: 200,
