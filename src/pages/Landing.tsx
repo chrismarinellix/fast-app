@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Flame, Brain, Zap, Heart, Sparkles, Clock,
@@ -42,14 +42,15 @@ export function Landing() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Redirect if already logged in
-  if (user) {
-    navigate('/dashboard');
-    return null;
-  }
+  // Redirect if already logged in (using useEffect to avoid render-time navigation)
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/dashboard');
+    }
+  }, [user, authLoading, navigate]);
 
-  // Show loading while checking auth
-  if (authLoading) {
+  // Show loading while checking auth OR if user exists (about to redirect)
+  if (authLoading || user) {
     return (
       <div style={{
         minHeight: '100vh',
