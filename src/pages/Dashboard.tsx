@@ -3230,7 +3230,7 @@ export function Dashboard() {
                   // Find the fast being shared (current or from history)
                   const fastToShare = shareToFastId === currentFast?.id
                     ? currentFast
-                    : fastingHistory.find(f => f.id === shareToFastId) || currentFast;
+                    : pastFasts.find((f) => f.id === shareToFastId) || currentFast;
 
                   // Calculate duration for the fast being shared
                   let previewHours = 0;
