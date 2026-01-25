@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   getCurrentFast, startFast, endFast, getFastingHistory,
   getFastingNotes, addFastingNote, canStartFast, updateUserProfile,
-  signOut, extendFast, setFastStartTime,
+  signOut, extendFast, setFastStartTime, confirmFast,
   getUserShares, deleteShare,
   getCommunityFasts,
   createShareConnection, getUserConnections, getPendingInvites,
@@ -352,6 +352,8 @@ export function Dashboard() {
     milestone: typeof FASTING_MILESTONES[0];
     completed: boolean;
   } | null>(null);
+  const [showConfirmFasting, setShowConfirmFasting] = useState(false);
+  const [showForgotFast, setShowForgotFast] = useState(false);
 
   // Diary form
   const [diaryNote, setDiaryNote] = useState('');
@@ -407,6 +409,36 @@ export function Dashboard() {
 
     loadData();
   }, [user]);
+
+  // Check if long fast needs confirmation (24+ hours, then every 4 hours)
+  useEffect(() => {
+    if (!currentFast || loading) return;
+
+    const checkConfirmation = async () => {
+      const startTime = new Date(currentFast.start_time).getTime();
+      const elapsedHours = (now - startTime) / (1000 * 60 * 60);
+      const lastConfirmed = currentFast.confirmed_at
+        ? new Date(currentFast.confirmed_at).getTime()
+        : startTime;
+      const hoursSinceConfirm = (now - lastConfirmed) / (1000 * 60 * 60);
+
+      // Auto-end at 48 hours if not confirmed in last 4 hours
+      if (elapsedHours >= 48 && hoursSinceConfirm >= 4) {
+        // End the fast and show the "forgot" message
+        await endFast(currentFast.id, false);
+        setCurrentFast(null);
+        setShowForgotFast(true);
+        return;
+      }
+
+      // Need confirmation after 24 hours, then every 4 hours
+      if (elapsedHours >= 24 && hoursSinceConfirm >= 4 && !showConfirmFasting) {
+        setShowConfirmFasting(true);
+      }
+    };
+
+    checkConfirmation();
+  }, [currentFast, now, loading, showConfirmFasting]);
 
   // Update timer
   useEffect(() => {
@@ -3721,6 +3753,137 @@ export function Dashboard() {
               </>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Still Fasting Modal */}
+      {showConfirmFasting && currentFast && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          zIndex: 60,
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 20,
+            padding: 32,
+            maxWidth: 360,
+            width: '100%',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🤔</div>
+            <h3 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12, color: '#333' }}>
+              Still fasting?
+            </h3>
+            <p style={{ fontSize: 15, color: '#666', marginBottom: 24, lineHeight: 1.5 }}>
+              You've been at it for {Math.floor((now - new Date(currentFast.start_time).getTime()) / (1000 * 60 * 60))} hours.
+              Just checking you haven't forgotten about this one!
+            </p>
+
+            <button
+              onClick={async () => {
+                if (currentFast) {
+                  const updated = await confirmFast(currentFast.id);
+                  if (updated) setCurrentFast(updated);
+                }
+                setShowConfirmFasting(false);
+              }}
+              style={{
+                width: '100%',
+                padding: '14px 24px',
+                background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: 'pointer',
+                marginBottom: 12,
+              }}
+            >
+              💪 Yes, still going strong!
+            </button>
+
+            <button
+              onClick={async () => {
+                if (currentFast) {
+                  await endFast(currentFast.id, false);
+                  setCurrentFast(null);
+                }
+                setShowConfirmFasting(false);
+                setShowForgotFast(true);
+              }}
+              style={{
+                width: '100%',
+                padding: '14px 24px',
+                background: '#f5f5f5',
+                color: '#666',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              😅 Oops, I forgot about it
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Forgot Fast Modal (cheeky message) */}
+      {showForgotFast && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          zIndex: 60,
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 20,
+            padding: 32,
+            maxWidth: 360,
+            width: '100%',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🙈</div>
+            <h3 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12, color: '#333' }}>
+              Nice try, legend
+            </h3>
+            <p style={{ fontSize: 15, color: '#666', marginBottom: 8, lineHeight: 1.5 }}>
+              We ended that one for you because... let's be honest, nobody's buying a 2-day fast where you "forgot" to eat.
+            </p>
+            <p style={{ fontSize: 14, color: '#999', marginBottom: 24, fontStyle: 'italic' }}>
+              The fast has been saved, but we both know what really happened here 😏
+            </p>
+
+            <button
+              onClick={() => setShowForgotFast(false)}
+              style={{
+                width: '100%',
+                padding: '14px 24px',
+                background: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Fair enough 😂
+            </button>
           </div>
         </div>
       )}

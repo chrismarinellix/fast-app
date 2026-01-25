@@ -42,6 +42,7 @@ export interface FastingSession {
   target_hours: number;
   completed: boolean;
   paid: boolean; // Whether $5 has been paid for this fast
+  confirmed_at?: string; // Last time user confirmed they're still fasting
   notes?: FastingNote[];
 }
 
@@ -1352,6 +1353,23 @@ export async function setFastStartTime(fastId: string, newStartTime: Date): Prom
     .from('fasting_sessions')
     .update({
       start_time: newStartTime.toISOString(),
+    })
+    .eq('id', fastId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Confirm that user is still fasting (for long fasts)
+export async function confirmFast(fastId: string): Promise<FastingSession | null> {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('fasting_sessions')
+    .update({
+      confirmed_at: new Date().toISOString(),
     })
     .eq('id', fastId)
     .select()
