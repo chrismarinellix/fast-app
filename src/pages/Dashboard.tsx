@@ -139,12 +139,39 @@ const FASTING_MILESTONES = [
   },
   {
     hour: 24,
-    title: 'Fast Complete!',
-    shortDesc: 'Maximum benefits achieved',
-    detail: 'Congratulations! You\'ve completed a full 24-hour fast. Your body has undergone significant metabolic and cellular renewal.',
+    title: '24-Hour Milestone',
+    shortDesc: 'Full day fast achieved',
+    detail: 'You\'ve completed a full 24-hour fast. Your body has undergone significant metabolic and cellular renewal. Autophagy is active.',
     icon: 'check',
     color: '#22c55e',
     benefits: ['Full autophagy cycle', 'Metabolic reset', 'Insulin sensitivity restored']
+  },
+  {
+    hour: 36,
+    title: 'Autophagy Intensifies',
+    shortDesc: 'Deep cellular cleanup',
+    detail: 'Autophagy is like a dimmer switch - it\'s now significantly brighter. Hunger often decreases as ketone levels rise. Growth hormone remains elevated.',
+    icon: 'sparkles',
+    color: '#06b6d4',
+    benefits: ['Peak cellular cleanup', 'Hunger diminishing', 'Growth hormone elevated']
+  },
+  {
+    hour: 48,
+    title: 'Deep Ketosis',
+    shortDesc: 'Immune cell clearing begins',
+    detail: 'Your body is in deep ketosis. Fat oxidation predominates. Old, worn-out immune cells are being cleared. Mental clarity often peaks.',
+    icon: 'brain',
+    color: '#8b5cf6',
+    benefits: ['Fat burning dominant', 'Immune cell clearing', 'Peak mental clarity']
+  },
+  {
+    hour: 72,
+    title: 'Immune System Reset',
+    shortDesc: 'Stem cell regeneration',
+    detail: 'Autophagy at peak levels. Stem cell regeneration activates, especially for immune cells. When you refeed, your body generates new, more effective immune cells.',
+    icon: 'heart',
+    color: '#f43f5e',
+    benefits: ['Stem cell activation', 'Immune regeneration', 'Peak autophagy']
   },
 ];
 
