@@ -9,6 +9,7 @@ import { Admin } from './pages/Admin';
 import { ResetPassword } from './pages/ResetPassword';
 import { ShareView } from './pages/ShareView';
 import { GroupView } from './pages/GroupView';
+import { ConnectView } from './pages/ConnectView';
 import Test from './pages/Test';
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/share/:token" element={<ShareView />} />
           <Route path="/group/:inviteCode" element={<GroupView />} />
+          <Route path="/connect/:inviteCode" element={<ConnectView />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

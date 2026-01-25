@@ -957,3 +957,406 @@ export async function deleteShareGroup(groupId: string, userId: string): Promise
     return false;
   }
 }
+
+// Community fasts - get all active fasts from all users
+export interface CommunityFast {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  start_time: string;
+  target_hours: number;
+}
+
+export async function getCommunityFasts(): Promise<CommunityFast[]> {
+  if (!supabase) return [];
+
+  try {
+    // Use RPC function to bypass RLS and get user details
+    const { data, error } = await supabase.rpc('get_community_fasts');
+
+    if (error) {
+      console.error('RPC error, falling back to direct query:', error);
+      // Fallback to direct query (won't have names due to RLS)
+      const { data: fasts, error: fastsError } = await supabase
+        .from('fasting_sessions')
+        .select('id, user_id, start_time, target_hours')
+        .is('end_time', null)
+        .order('start_time', { ascending: false });
+
+      if (fastsError) throw fastsError;
+      return (fasts || []).map(fast => ({
+        id: fast.id,
+        user_id: fast.user_id,
+        user_name: 'Faster',
+        user_email: '',
+        start_time: fast.start_time,
+        target_hours: fast.target_hours || 24,
+      }));
+    }
+
+    return (data || []).map((fast: any) => ({
+      id: fast.id,
+      user_id: fast.user_id,
+      user_name: fast.user_name || 'Faster',
+      user_email: fast.user_email || '',
+      start_time: fast.start_time,
+      target_hours: fast.target_hours || 24,
+    }));
+  } catch (e) {
+    console.error('Error fetching community fasts:', e);
+    return [];
+  }
+}
+
+// ============ SHARE CONNECTIONS (1-to-1 Reciprocal Sharing) ============
+
+export interface ShareConnection {
+  id: string;
+  user_a: string;
+  user_b: string | null;
+  invite_code: string;
+  display_name_a: string;
+  display_name_b: string | null;
+  show_network_to_b: boolean;
+  created_at: string;
+  accepted_at: string | null;
+}
+
+export interface ConnectionWithFast {
+  connection_id: string;
+  connected_user_id: string;
+  display_name: string;
+  is_initiator: boolean;
+  show_network: boolean;
+  connected_at: string;
+  current_fast?: {
+    id: string;
+    start_time: string;
+    target_hours: number;
+  };
+}
+
+// Generate a random invite code for connections
+function generateConnectionCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// Create a new share connection invite
+export async function createShareConnection(
+  userId: string,
+  displayName: string,
+  showNetworkToB: boolean = false
+): Promise<ShareConnection | null> {
+  if (!supabase) return null;
+
+  try {
+    const inviteCode = generateConnectionCode();
+
+    const { data, error } = await supabase
+      .from('share_connections')
+      .insert({
+        user_a: userId,
+        invite_code: inviteCode,
+        display_name_a: displayName,
+        show_network_to_b: showNetworkToB,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.error('Error creating share connection:', e);
+    return null;
+  }
+}
+
+// Get connection by invite code (for accepting)
+export async function getConnectionByInviteCode(inviteCode: string): Promise<ShareConnection | null> {
+  if (!supabase) return null;
+
+  try {
+    // Try RPC function first (for public access)
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc('get_connection_by_invite_code', { code: inviteCode.toUpperCase() });
+
+    if (!rpcError && rpcData && rpcData.length > 0) {
+      return rpcData[0];
+    }
+
+    // Fallback: direct query
+    const { data, error } = await supabase
+      .from('share_connections')
+      .select('*')
+      .eq('invite_code', inviteCode.toUpperCase())
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data || null;
+  } catch (e) {
+    console.error('Error fetching connection:', e);
+    return null;
+  }
+}
+
+// Accept a share connection invite
+export async function acceptShareConnection(
+  inviteCode: string,
+  userId: string,
+  displayName: string
+): Promise<ShareConnection | null> {
+  if (!supabase) return null;
+
+  try {
+    // Try RPC function first
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc('accept_share_connection', {
+        p_invite_code: inviteCode.toUpperCase(),
+        p_user_id: userId,
+        p_display_name: displayName,
+      });
+
+    if (!rpcError && rpcData && rpcData.length > 0) {
+      return rpcData[0];
+    }
+
+    // Fallback: manual update
+    const connection = await getConnectionByInviteCode(inviteCode);
+    if (!connection) throw new Error('Connection not found');
+    if (connection.user_b) throw new Error('Connection already accepted');
+    if (connection.user_a === userId) throw new Error('Cannot accept your own invite');
+
+    const { data, error } = await supabase
+      .from('share_connections')
+      .update({
+        user_b: userId,
+        display_name_b: displayName,
+        accepted_at: new Date().toISOString(),
+      })
+      .eq('id', connection.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.error('Error accepting share connection:', e);
+    return null;
+  }
+}
+
+// Get all connections for a user (accepted only)
+export async function getUserConnections(userId: string): Promise<ConnectionWithFast[]> {
+  if (!supabase) return [];
+
+  try {
+    // Try RPC function for optimized query with fasts
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc('get_user_connections_with_fasts', { p_user_id: userId });
+
+    if (!rpcError && rpcData) {
+      return rpcData.map((row: {
+        connection_id: string;
+        connected_user_id: string;
+        display_name: string;
+        is_initiator: boolean;
+        show_network: boolean;
+        connected_at: string;
+        current_fast_id?: string;
+        current_fast_start?: string;
+        current_fast_target?: number;
+      }) => ({
+        connection_id: row.connection_id,
+        connected_user_id: row.connected_user_id,
+        display_name: row.display_name,
+        is_initiator: row.is_initiator,
+        show_network: row.show_network,
+        connected_at: row.connected_at,
+        current_fast: row.current_fast_id ? {
+          id: row.current_fast_id,
+          start_time: row.current_fast_start!,
+          target_hours: row.current_fast_target!,
+        } : undefined,
+      }));
+    }
+
+    // Fallback: manual query
+    const { data: connections, error } = await supabase
+      .from('share_connections')
+      .select('*')
+      .or(`user_a.eq.${userId},user_b.eq.${userId}`)
+      .not('accepted_at', 'is', null);
+
+    if (error) throw error;
+    if (!connections || connections.length === 0) return [];
+
+    // Get current fasts for connected users
+    const connectedUserIds = connections.map(c =>
+      c.user_a === userId ? c.user_b : c.user_a
+    ).filter(Boolean);
+
+    const { data: fasts } = await supabase
+      .from('fasting_sessions')
+      .select('id, user_id, start_time, target_hours')
+      .in('user_id', connectedUserIds)
+      .is('end_time', null);
+
+    const fastsByUser: Record<string, { id: string; start_time: string; target_hours: number }> = {};
+    (fasts || []).forEach(f => {
+      fastsByUser[f.user_id] = f;
+    });
+
+    return connections.map(c => {
+      const isInitiator = c.user_a === userId;
+      const connectedUserId = isInitiator ? c.user_b : c.user_a;
+      return {
+        connection_id: c.id,
+        connected_user_id: connectedUserId!,
+        display_name: isInitiator ? c.display_name_b! : c.display_name_a,
+        is_initiator: isInitiator,
+        show_network: isInitiator || c.show_network_to_b,
+        connected_at: c.accepted_at!,
+        current_fast: connectedUserId ? fastsByUser[connectedUserId] : undefined,
+      };
+    });
+  } catch (e) {
+    console.error('Error fetching user connections:', e);
+    return [];
+  }
+}
+
+// Get pending invites (sent but not yet accepted)
+export async function getPendingInvites(userId: string): Promise<ShareConnection[]> {
+  if (!supabase) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('share_connections')
+      .select('*')
+      .eq('user_a', userId)
+      .is('user_b', null)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (e) {
+    console.error('Error fetching pending invites:', e);
+    return [];
+  }
+}
+
+// Remove a share connection
+export async function removeShareConnection(connectionId: string, userId: string): Promise<boolean> {
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase
+      .from('share_connections')
+      .delete()
+      .eq('id', connectionId)
+      .or(`user_a.eq.${userId},user_b.eq.${userId}`);
+
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('Error removing share connection:', e);
+    return false;
+  }
+}
+
+// Get network connections (people connected to someone I'm connected with, if allowed)
+export async function getNetworkConnections(
+  userId: string,
+  throughUserId: string
+): Promise<ConnectionWithFast[]> {
+  if (!supabase) return [];
+
+  try {
+    // First check if I have permission to see this user's network
+    const { data: myConnection } = await supabase
+      .from('share_connections')
+      .select('*')
+      .or(`and(user_a.eq.${throughUserId},user_b.eq.${userId}),and(user_a.eq.${userId},user_b.eq.${throughUserId})`)
+      .not('accepted_at', 'is', null)
+      .single();
+
+    if (!myConnection) return [];
+
+    // Check if I can see their network
+    const canSeeNetwork = myConnection.user_a === userId ||
+      (myConnection.user_b === userId && myConnection.show_network_to_b);
+
+    if (!canSeeNetwork) return [];
+
+    // Get their other connections
+    const { data: theirConnections } = await supabase
+      .from('share_connections')
+      .select('*')
+      .or(`user_a.eq.${throughUserId},user_b.eq.${throughUserId}`)
+      .not('accepted_at', 'is', null)
+      .neq('id', myConnection.id);
+
+    if (!theirConnections || theirConnections.length === 0) return [];
+
+    // Get fasts for those users
+    const networkUserIds = theirConnections.map(c =>
+      c.user_a === throughUserId ? c.user_b : c.user_a
+    ).filter(id => id !== userId);
+
+    const { data: fasts } = await supabase
+      .from('fasting_sessions')
+      .select('id, user_id, start_time, target_hours')
+      .in('user_id', networkUserIds)
+      .is('end_time', null);
+
+    const fastsByUser: Record<string, { id: string; start_time: string; target_hours: number }> = {};
+    (fasts || []).forEach(f => {
+      fastsByUser[f.user_id] = f;
+    });
+
+    return theirConnections
+      .filter(c => {
+        const connectedId = c.user_a === throughUserId ? c.user_b : c.user_a;
+        return connectedId !== userId;
+      })
+      .map(c => {
+        const connectedUserId = c.user_a === throughUserId ? c.user_b! : c.user_a;
+        const displayName = c.user_a === throughUserId ? c.display_name_b! : c.display_name_a;
+        return {
+          connection_id: c.id,
+          connected_user_id: connectedUserId,
+          display_name: displayName,
+          is_initiator: false,
+          show_network: false,
+          connected_at: c.accepted_at!,
+          current_fast: fastsByUser[connectedUserId],
+        };
+      });
+  } catch (e) {
+    console.error('Error fetching network connections:', e);
+    return [];
+  }
+}
+
+// Set start time directly (for time picker)
+export async function setFastStartTime(fastId: string, newStartTime: Date): Promise<FastingSession | null> {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('fasting_sessions')
+    .update({
+      start_time: newStartTime.toISOString(),
+    })
+    .eq('id', fastId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}

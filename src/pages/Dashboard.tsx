@@ -6,16 +6,18 @@ import {
   LogOut, TrendingUp, Award, Target, Plus, Timer, Settings,
   Trash2, Link, Eye, Copy, X, Check, MessageSquare, Users
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getCurrentFast, startFast, endFast, getFastingHistory,
   getFastingNotes, addFastingNote, canStartFast, updateUserProfile,
-  signOut, extendFast, adjustFastStartTime,
+  signOut, extendFast, setFastStartTime,
   createShare, getExistingShare, getUserShares, deleteShare,
-  createShareGroup, getUserGroups,
+  getCommunityFasts,
+  createShareConnection, getUserConnections, getPendingInvites,
+  removeShareConnection,
   type FastingSession, type FastingNote, type FastShare,
-  type ShareGroup, type ShareGroupMember
+  type CommunityFast, type ConnectionWithFast, type ShareConnection
 } from '../lib/supabase';
 import { redirectToCheckout, FAST_PRICE_ID } from '../lib/stripe';
 
@@ -329,20 +331,22 @@ export function Dashboard() {
   const [showExtend, setShowExtend] = useState(false);
   const [showAdjustTime, setShowAdjustTime] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [shareMode, setShareMode] = useState<'choose' | 'link' | 'group' | 'link-done' | 'group-done'>('choose');
+  const [shareMode, setShareMode] = useState<'choose' | 'link' | 'link-done'>('choose');
   const [shareName, setShareName] = useState('');
   const [shareIncludeNotes, setShareIncludeNotes] = useState(false);
+  const [shareShowNetwork, setShareShowNetwork] = useState(false);
   const [shareToFastId, setShareToFastId] = useState<string | null>(null);
   const [isCreatingShare, setIsCreatingShare] = useState(false);
   const [copiedShareToken, setCopiedShareToken] = useState<string | null>(null);
+  const [createdInviteCode, setCreatedInviteCode] = useState<string | null>(null);
   const [userShares, setUserShares] = useState<(FastShare & { fast?: FastingSession })[]>([]);
-  const [userGroups, setUserGroups] = useState<(ShareGroupMember & { group: ShareGroup })[]>([]);
-  const [newGroupName, setNewGroupName] = useState('');
-  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const [createdGroupCode, setCreatedGroupCode] = useState<string | null>(null);
-  const [copiedGroupCode, setCopiedGroupCode] = useState<string | null>(null);
+  const [userConnections, setUserConnections] = useState<ConnectionWithFast[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<ShareConnection[]>([]);
+  const [communityFasts, setCommunityFasts] = useState<CommunityFast[]>([]);
+  const [hoveredCommunityMilestone, setHoveredCommunityMilestone] = useState<{ fastId: string; hour: number } | null>(null);
   const [showProtocolSelect, setShowProtocolSelect] = useState(false);
   const [adjustHours, setAdjustHours] = useState(0);
+  const [newStartTime, setNewStartTime] = useState<string>('');
   const [extendHours, setExtendHours] = useState(6);
   const [showCompletionSummary, setShowCompletionSummary] = useState(false);
   const [completedFastSummary, setCompletedFastSummary] = useState<{
@@ -413,14 +417,29 @@ export function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Load user shares and groups when history is opened
+  // Load community fasts
+  useEffect(() => {
+    const loadCommunity = async () => {
+      const fasts = await getCommunityFasts();
+      setCommunityFasts(fasts);
+    };
+    loadCommunity();
+    // Refresh every 30 seconds
+    const interval = setInterval(loadCommunity, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Load user shares and connections when history is opened
   useEffect(() => {
     if (showHistory && user) {
       getUserShares(user.id).then(shares => {
         setUserShares(shares);
       });
-      getUserGroups(user.id).then(groups => {
-        setUserGroups(groups);
+      getUserConnections(user.id).then(connections => {
+        setUserConnections(connections);
+      });
+      getPendingInvites(user.id).then(invites => {
+        setPendingInvites(invites);
       });
     }
   }, [showHistory, user]);
@@ -552,19 +571,29 @@ export function Dashboard() {
   }, [currentFast, extendHours]);
 
   const handleAdjustStartTime = useCallback(async () => {
-    if (!currentFast || adjustHours <= 0) return;
+    if (!currentFast || !newStartTime) return;
 
     try {
-      const updatedFast = await adjustFastStartTime(currentFast.id, adjustHours);
+      // Parse the time input and create a new date with today's date (or yesterday if time is later than now)
+      const [hours, minutes] = newStartTime.split(':').map(Number);
+      const newDate = new Date();
+      newDate.setHours(hours, minutes, 0, 0);
+
+      // If the selected time is after current time, it must be from yesterday
+      if (newDate > new Date()) {
+        newDate.setDate(newDate.getDate() - 1);
+      }
+
+      const updatedFast = await setFastStartTime(currentFast.id, newDate);
       if (updatedFast) {
         setCurrentFast(updatedFast);
         setShowAdjustTime(false);
-        setAdjustHours(0);
+        setNewStartTime('');
       }
     } catch (err) {
       console.error('Failed to adjust start time:', err);
     }
-  }, [currentFast, adjustHours]);
+  }, [currentFast, newStartTime]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -845,16 +874,38 @@ export function Dashboard() {
                 </div>
               </div>
 
-              {/* Fast end time */}
+              {/* Start and End time display */}
               {fastStartTime && (
-                <div style={{ fontSize: 18, color: 'rgba(0,0,0,0.6)', marginBottom: 24, fontWeight: 500 }}>
-                  {isComplete ? (
-                    <span>Completed at <strong style={{ color: '#16a34a' }}>{format(new Date(fastStartTime + fastDuration), 'h:mm a')}</strong></span>
-                  ) : (
-                    <span>
-                      {targetHours}h fast • Ends at <strong style={{ color: '#1a1a1a', fontWeight: 700 }}>{format(new Date(fastStartTime + fastDuration), 'h:mm a')}</strong> ({format(new Date(fastStartTime + fastDuration), 'EEE')})
-                    </span>
-                  )}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  gap: 24,
+                  marginBottom: 24,
+                  flexWrap: 'wrap',
+                }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                      Started
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#333' }}>
+                      {format(new Date(fastStartTime), 'h:mm a')}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                      {format(new Date(fastStartTime), 'EEE, MMM d')}
+                    </div>
+                  </div>
+                  <div style={{ width: 1, background: 'rgba(0,0,0,0.1)', alignSelf: 'stretch' }} />
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                      {isComplete ? 'Completed' : `${targetHours}h Goal`}
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: isComplete ? '#16a34a' : '#333' }}>
+                      {format(new Date(fastStartTime + fastDuration), 'h:mm a')}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                      {format(new Date(fastStartTime + fastDuration), 'EEE, MMM d')}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1140,7 +1191,7 @@ export function Dashboard() {
                     cursor: 'pointer',
                   }}
                 >
-                  <Edit3 size={18} /> Adjust
+                  <Edit3 size={18} /> Fix Start
                 </button>
 
                 <button
@@ -1159,7 +1210,7 @@ export function Dashboard() {
                     cursor: 'pointer',
                   }}
                 >
-                  <Plus size={18} /> Extend
+                  <Plus size={18} /> Add Hours
                 </button>
 
                 <button
@@ -1217,6 +1268,231 @@ export function Dashboard() {
                 )}
               </div>
 
+              {/* Community Fasts Section - Shows other users currently fasting */}
+              {communityFasts.filter(f => f.user_id !== user?.id).length > 0 && (
+                <div style={{
+                  marginTop: 24,
+                  background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+                  borderRadius: 16,
+                  padding: 20,
+                }}>
+                  <h3 style={{
+                    margin: '0 0 16px 0',
+                    fontSize: 16,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    color: '#333',
+                  }}>
+                    <Users size={18} color="#8b5cf6" />
+                    Fasting Together ({communityFasts.filter(f => f.user_id !== user?.id).length})
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {communityFasts.filter(f => f.user_id !== user?.id).map(fast => {
+                      const startTime = new Date(fast.start_time).getTime();
+                      const durationMs = now - startTime;
+                      const totalHrs = durationMs / (1000 * 60 * 60);
+                      const days = Math.floor(totalHrs / 24);
+                      const hrs = Math.floor(totalHrs % 24);
+                      const mins = Math.floor((totalHrs - Math.floor(totalHrs)) * 60);
+                      const secs = Math.floor((totalHrs * 3600) - (Math.floor(totalHrs) * 3600) - (mins * 60));
+                      const milestone = FASTING_MILESTONES.filter(m => m.hour <= totalHrs).pop() || FASTING_MILESTONES[0];
+                      const nextMilestone = FASTING_MILESTONES.find(m => m.hour > totalHrs);
+                      const prog = Math.min(100, (totalHrs / fast.target_hours) * 100);
+                      const isComplete = totalHrs >= fast.target_hours;
+
+                      return (
+                        <div
+                          key={fast.id}
+                          style={{
+                            background: '#fff',
+                            borderRadius: 16,
+                            padding: 20,
+                            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.06)',
+                            borderLeft: `4px solid ${milestone.color}`,
+                          }}
+                        >
+                          {/* Name and Live badge */}
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: 12,
+                          }}>
+                            <div style={{ fontSize: 18, fontWeight: 700, color: '#333' }}>
+                              {fast.user_name}
+                            </div>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '4px 10px',
+                              background: 'rgba(34, 197, 94, 0.1)',
+                              borderRadius: 12,
+                              color: '#16a34a',
+                              fontSize: 11,
+                              fontWeight: 600,
+                            }}>
+                              <Timer size={12} />
+                              LIVE
+                            </div>
+                          </div>
+
+                          {/* Milestone badge */}
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '6px 12px',
+                            background: `${milestone.color}15`,
+                            borderRadius: 20,
+                            color: milestone.color,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            marginBottom: 12,
+                          }}>
+                            <MilestoneIcon icon={milestone.icon} size={16} />
+                            {milestone.title}
+                          </div>
+
+                          {/* Timer */}
+                          <div style={{
+                            fontSize: 24,
+                            fontWeight: 700,
+                            color: isComplete ? '#16a34a' : milestone.color,
+                            fontVariantNumeric: 'tabular-nums',
+                            marginBottom: 10,
+                          }}>
+                            {days > 0 && <span>{days}d </span>}
+                            {hrs}:{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
+                          </div>
+
+                          {/* Progress bar with milestone dots */}
+                          <div style={{ marginBottom: 8 }}>
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              marginBottom: 6,
+                            }}>
+                              <span style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: isComplete ? '#16a34a' : milestone.color,
+                              }}>
+                                {Math.round(prog)}% Complete
+                              </span>
+                              <span style={{ fontSize: 12, color: '#888' }}>
+                                Goal: {fast.target_hours}h
+                              </span>
+                            </div>
+                            <div style={{ position: 'relative' }}>
+                              {/* Track */}
+                              <div style={{
+                                width: '100%',
+                                height: 8,
+                                background: 'rgba(0,0,0,0.06)',
+                                borderRadius: 4,
+                              }}>
+                                {/* Fill */}
+                                <div style={{
+                                  width: `${prog}%`,
+                                  height: '100%',
+                                  background: isComplete ? '#22c55e' : `linear-gradient(90deg, ${milestone.color}, ${nextMilestone?.color || '#22c55e'})`,
+                                  borderRadius: 4,
+                                  transition: 'width 1s linear',
+                                }} />
+                              </div>
+                              {/* Milestone dots */}
+                              {FASTING_MILESTONES.filter(m => m.hour > 0 && m.hour <= fast.target_hours).map(m => {
+                                const isPassed = totalHrs >= m.hour;
+                                const isCurrent = milestone.hour === m.hour;
+                                const isHovered = hoveredCommunityMilestone?.fastId === fast.id && hoveredCommunityMilestone?.hour === m.hour;
+                                return (
+                                  <div
+                                    key={m.hour}
+                                    onMouseEnter={() => setHoveredCommunityMilestone({ fastId: fast.id, hour: m.hour })}
+                                    onMouseLeave={() => setHoveredCommunityMilestone(null)}
+                                    style={{
+                                      position: 'absolute',
+                                      left: `${(m.hour / fast.target_hours) * 100}%`,
+                                      top: '50%',
+                                      transform: 'translate(-50%, -50%)',
+                                      cursor: 'pointer',
+                                      zIndex: isHovered ? 100 : 10,
+                                    }}
+                                  >
+                                    <div style={{
+                                      width: isCurrent ? 16 : isHovered ? 14 : 10,
+                                      height: isCurrent ? 16 : isHovered ? 14 : 10,
+                                      borderRadius: '50%',
+                                      background: isPassed ? m.color : '#e5e5e5',
+                                      border: isCurrent ? '3px solid #fff' : '2px solid #fff',
+                                      boxShadow: isPassed ? `0 2px 8px ${m.color}50` : '0 1px 3px rgba(0,0,0,0.1)',
+                                      transition: 'all 0.2s',
+                                    }} />
+                                    {/* Tooltip */}
+                                    {isHovered && (
+                                      <div style={{
+                                        position: 'absolute',
+                                        bottom: '100%',
+                                        left: '50%',
+                                        transform: 'translateX(-50%)',
+                                        marginBottom: 12,
+                                        padding: '12px 16px',
+                                        background: '#fff',
+                                        color: '#333',
+                                        borderRadius: 12,
+                                        fontSize: 13,
+                                        width: 220,
+                                        boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
+                                        border: '1px solid rgba(0,0,0,0.08)',
+                                        zIndex: 1000,
+                                      }}>
+                                        <div style={{
+                                          fontWeight: 700,
+                                          color: m.color,
+                                          marginBottom: 4,
+                                          fontSize: 11,
+                                          textTransform: 'uppercase',
+                                          letterSpacing: '0.05em',
+                                        }}>
+                                          Hour {m.hour} {isCurrent ? '• CURRENT' : isPassed ? '• ACHIEVED' : '• UPCOMING'}
+                                        </div>
+                                        <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 15, color: '#1a1a1a' }}>{m.title}</div>
+                                        <div style={{ fontSize: 12, color: '#555', lineHeight: 1.5 }}>{m.shortDesc}</div>
+                                        {/* Arrow */}
+                                        <div style={{
+                                          position: 'absolute',
+                                          bottom: -8,
+                                          left: '50%',
+                                          transform: 'translateX(-50%) rotate(45deg)',
+                                          width: 14,
+                                          height: 14,
+                                          background: '#fff',
+                                          borderRight: '1px solid rgba(0,0,0,0.08)',
+                                          borderBottom: '1px solid rgba(0,0,0,0.08)',
+                                        }} />
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Started time */}
+                          <div style={{ fontSize: 12, color: '#888' }}>
+                            Started {format(new Date(fast.start_time), 'h:mm a')}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* History Panel - shows inline */}
               {showHistory && (
                 <div style={{
@@ -1249,7 +1525,7 @@ export function Dashboard() {
                     </div>
                   </div>
 
-                  {/* My Groups Section */}
+                  {/* Share Connections Section */}
                   <div style={{ marginBottom: 20 }}>
                     <div style={{
                       display: 'flex',
@@ -1258,11 +1534,12 @@ export function Dashboard() {
                       marginBottom: 12,
                     }}>
                       <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Users size={18} color="#8b5cf6" /> Fasting Groups
+                        <Users size={18} color="#8b5cf6" /> Fasting Buddies
                       </h3>
                       <button
                         onClick={() => {
-                          setShareMode('group');
+                          setShareMode('link');
+                          setShareName(profile?.name || '');
                           setShowShareModal(true);
                         }}
                         style={{
@@ -1279,10 +1556,79 @@ export function Dashboard() {
                           cursor: 'pointer',
                         }}
                       >
-                        <Plus size={14} /> Create Group
+                        <Plus size={14} /> Share With Someone
                       </button>
                     </div>
-                    {userGroups.length === 0 ? (
+
+                    {/* Pending Invites */}
+                    {pendingInvites.length > 0 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, color: '#888', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Pending Invites
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {pendingInvites.map((invite) => {
+                            const inviteUrl = `${window.location.origin}/connect/${invite.invite_code}`;
+                            return (
+                              <div key={invite.id} style={{
+                                background: '#fffbeb',
+                                borderRadius: 10,
+                                padding: '10px 14px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                border: '1px solid #fde68a',
+                              }}>
+                                <Clock size={16} color="#f59e0b" />
+                                <div style={{ flex: 1, fontSize: 13, color: '#92400e' }}>
+                                  Waiting for someone to accept...
+                                </div>
+                                <button
+                                  onClick={async () => {
+                                    await navigator.clipboard.writeText(inviteUrl);
+                                  }}
+                                  style={{
+                                    padding: '4px 10px',
+                                    background: '#f59e0b',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: 6,
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  Copy Link
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (user) {
+                                      await removeShareConnection(invite.id, user.id);
+                                      const invites = await getPendingInvites(user.id);
+                                      setPendingInvites(invites);
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '4px 8px',
+                                    background: 'transparent',
+                                    color: '#dc2626',
+                                    border: 'none',
+                                    borderRadius: 6,
+                                    fontSize: 11,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Connected Buddies */}
+                    {userConnections.length === 0 && pendingInvites.length === 0 ? (
                       <div style={{
                         background: '#fff',
                         borderRadius: 12,
@@ -1291,15 +1637,22 @@ export function Dashboard() {
                       }}>
                         <Users size={32} color="#ddd" style={{ marginBottom: 8 }} />
                         <p style={{ color: '#888', fontSize: 13, margin: 0 }}>
-                          Create a group to fast together with friends
+                          Share with a friend to see each other's fasts
                         </p>
                       </div>
-                    ) : (
+                    ) : userConnections.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {userGroups.map((membership) => {
-                          const groupUrl = `${window.location.origin}/group/${membership.group.invite_code}`;
+                        {userConnections.map((connection) => {
+                          const isFasting = !!connection.current_fast;
+                          let fastHours = 0;
+                          if (connection.current_fast) {
+                            const startTime = new Date(connection.current_fast.start_time).getTime();
+                            fastHours = (Date.now() - startTime) / (1000 * 60 * 60);
+                          }
+                          const milestone = FASTING_MILESTONES.filter(m => m.hour <= fastHours).pop() || FASTING_MILESTONES[0];
+
                           return (
-                            <div key={membership.id} style={{
+                            <div key={connection.connection_id} style={{
                               background: '#fff',
                               borderRadius: 10,
                               padding: '12px 14px',
@@ -1311,58 +1664,63 @@ export function Dashboard() {
                                 width: 36,
                                 height: 36,
                                 borderRadius: 10,
-                                background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                                background: isFasting
+                                  ? `linear-gradient(135deg, ${milestone.color}, ${milestone.color}dd)`
+                                  : '#f0f0f0',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                               }}>
-                                <Users size={18} color="#fff" />
+                                {isFasting ? (
+                                  <Flame size={18} color="#fff" />
+                                ) : (
+                                  <Users size={18} color="#999" />
+                                )}
                               </div>
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: 14, fontWeight: 600, color: '#333' }}>
-                                  {membership.group.name}
+                                  {connection.display_name}
                                 </div>
-                                <div style={{ fontSize: 11, color: '#888' }}>
-                                  Code: {membership.group.invite_code}
+                                <div style={{ fontSize: 12, color: isFasting ? milestone.color : '#888' }}>
+                                  {isFasting ? (
+                                    <>
+                                      {Math.floor(fastHours)}h {Math.floor((fastHours % 1) * 60)}m - {milestone.title}
+                                    </>
+                                  ) : (
+                                    'Not fasting'
+                                  )}
                                 </div>
                               </div>
-                              <button
-                                onClick={() => navigate(`/group/${membership.group.invite_code}`)}
-                                style={{
-                                  padding: '6px 12px',
-                                  background: '#f5f3ff',
-                                  color: '#7c3aed',
-                                  border: 'none',
-                                  borderRadius: 6,
-                                  fontSize: 12,
+                              {isFasting && (
+                                <div style={{
+                                  padding: '4px 10px',
+                                  background: `${milestone.color}20`,
+                                  color: milestone.color,
+                                  borderRadius: 12,
+                                  fontSize: 11,
                                   fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                View
-                              </button>
+                                }}>
+                                  LIVE
+                                </div>
+                              )}
                               <button
                                 onClick={async () => {
-                                  await navigator.clipboard.writeText(groupUrl);
-                                  setCopiedGroupCode(membership.group.invite_code);
-                                  setTimeout(() => setCopiedGroupCode(null), 2000);
+                                  if (user && confirm('Remove this connection?')) {
+                                    await removeShareConnection(connection.connection_id, user.id);
+                                    const connections = await getUserConnections(user.id);
+                                    setUserConnections(connections);
+                                  }
                                 }}
                                 style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                  padding: '6px 10px',
-                                  background: copiedGroupCode === membership.group.invite_code ? '#22c55e' : '#f0f0f0',
-                                  color: copiedGroupCode === membership.group.invite_code ? '#fff' : '#666',
+                                  padding: '6px',
+                                  background: 'transparent',
+                                  color: '#999',
                                   border: 'none',
                                   borderRadius: 6,
-                                  fontSize: 11,
                                   cursor: 'pointer',
-                                  transition: 'all 0.2s',
                                 }}
                               >
-                                {copiedGroupCode === membership.group.invite_code ? <Check size={12} /> : <Copy size={12} />}
-                                {copiedGroupCode === membership.group.invite_code ? 'Copied!' : 'Invite'}
+                                <Trash2 size={14} />
                               </button>
                             </div>
                           );
@@ -2214,112 +2572,200 @@ export function Dashboard() {
       )}
 
       {/* Adjust Start Time Modal */}
-      {showAdjustTime && currentFast && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.6)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 24,
-          zIndex: 100,
-        }}>
+      {showAdjustTime && currentFast && (() => {
+        // Calculate the adjusted start time based on adjustHours (in minutes)
+        const currentStartMs = new Date(currentFast.start_time).getTime();
+        const adjustedStartMs = currentStartMs - (adjustHours * 60 * 1000); // adjustHours is actually minutes
+        const adjustedStart = new Date(adjustedStartMs);
+        const newElapsedMs = now - adjustedStartMs;
+        const newElapsedHours = newElapsedMs / (1000 * 60 * 60);
+        const diffHours = (adjustHours / 60);
+
+        return (
           <div style={{
-            background: '#fff',
-            borderRadius: 20,
-            padding: 36,
-            maxWidth: 400,
-            width: '100%',
-            textAlign: 'center',
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            zIndex: 100,
           }}>
             <div style={{
-              width: 70,
-              height: 70,
-              borderRadius: 16,
-              background: 'linear-gradient(135deg, #eab308, #ca8a04)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 20px',
+              background: '#fff',
+              borderRadius: 20,
+              padding: 36,
+              maxWidth: 400,
+              width: '100%',
+              textAlign: 'center',
             }}>
-              <Edit3 size={36} color="#fff" />
-            </div>
-
-            <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800 }}>Adjust Start Time</h2>
-            <p style={{ color: '#666', marginBottom: 24, fontSize: 15 }}>
-              Forgot to start your fast? Backdate it to when you actually began.
-            </p>
-
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                I started fasting... hours ago
+              <div style={{
+                width: 70,
+                height: 70,
+                borderRadius: 16,
+                background: 'linear-gradient(135deg, #eab308, #ca8a04)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 20px',
+              }}>
+                <Edit3 size={36} color="#fff" />
               </div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-                {[1, 2, 3, 4, 6, 8].map(hours => (
+
+              <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800 }}>Fix Start Time</h2>
+              <p style={{ color: '#666', marginBottom: 20, fontSize: 15 }}>
+                Tap to adjust when you started
+              </p>
+
+              {/* Big time display that updates */}
+              <div style={{
+                background: adjustHours !== 0
+                  ? (diffHours > 0 ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)')
+                  : 'rgba(234, 179, 8, 0.1)',
+                borderRadius: 16,
+                padding: 24,
+                marginBottom: 24,
+              }}>
+                <div style={{
+                  fontSize: 42,
+                  fontWeight: 800,
+                  color: adjustHours !== 0
+                    ? (diffHours > 0 ? '#16a34a' : '#dc2626')
+                    : '#ca8a04',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {format(adjustedStart, 'h:mm a')}
+                </div>
+                <div style={{ fontSize: 14, color: '#666', marginTop: 4 }}>
+                  {isToday(adjustedStart) ? 'Today' : isYesterday(adjustedStart) ? 'Yesterday' : format(adjustedStart, 'EEEE, MMM d')}
+                </div>
+                {adjustHours !== 0 && (
+                  <div style={{
+                    marginTop: 12,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: diffHours > 0 ? '#16a34a' : '#dc2626',
+                  }}>
+                    {diffHours > 0 ? '+' : ''}{diffHours.toFixed(1)}h → {Math.floor(newElapsedHours)}h {Math.floor((newElapsedHours % 1) * 60)}m fasted
+                  </div>
+                )}
+              </div>
+
+              {/* Time adjustment buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24, marginBottom: 24 }}>
+                <button
+                  onClick={() => setAdjustHours(prev => prev + 30)}
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: 'rgba(34, 197, 94, 0.1)',
+                    color: '#16a34a',
+                    fontSize: 28,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  ←
+                </button>
+                <div style={{ fontSize: 12, color: '#888', textAlign: 'center' }}>
+                  30 min<br/>per tap
+                </div>
+                <button
+                  onClick={() => setAdjustHours(prev => prev - 30)}
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    color: '#dc2626',
+                    fontSize: 28,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  →
+                </button>
+              </div>
+
+                {/* Reset button */}
+                {adjustHours !== 0 && (
                   <button
-                    key={hours}
-                    onClick={() => setAdjustHours(hours)}
+                    onClick={() => setAdjustHours(0)}
                     style={{
-                      width: 50,
-                      height: 50,
-                      borderRadius: 12,
-                      border: adjustHours === hours ? '2px solid #eab308' : '1px solid rgba(0,0,0,0.1)',
-                      background: adjustHours === hours ? 'rgba(234, 179, 8, 0.1)' : '#fff',
-                      color: adjustHours === hours ? '#ca8a04' : '#333',
-                      fontSize: 18,
-                      fontWeight: 700,
+                      padding: '8px 20px',
+                      background: '#f5f5f5',
+                      border: 'none',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      color: '#666',
                       cursor: 'pointer',
                     }}
                   >
-                    +{hours}
+                    Reset
                   </button>
-                ))}
+                )}
               </div>
-              {adjustHours > 0 && (
-                <p style={{ marginTop: 16, fontSize: 14, color: '#666' }}>
-                  New start time: {format(new Date(new Date(currentFast.start_time).getTime() - adjustHours * 60 * 60 * 1000), 'h:mm a')}
-                </p>
-              )}
+
+              <button
+                onClick={async () => {
+                  if (!currentFast || adjustHours === 0) return;
+                  try {
+                    const updatedFast = await setFastStartTime(currentFast.id, adjustedStart);
+                    if (updatedFast) {
+                      setCurrentFast(updatedFast);
+                      setShowAdjustTime(false);
+                      setAdjustHours(0);
+                    }
+                  } catch (err) {
+                    console.error('Failed to adjust start time:', err);
+                  }
+                }}
+                disabled={adjustHours === 0}
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  background: adjustHours !== 0 ? 'linear-gradient(135deg, #eab308, #ca8a04)' : '#ccc',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 12,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  cursor: adjustHours !== 0 ? 'pointer' : 'not-allowed',
+                  marginBottom: 10,
+                }}
+              >
+                {adjustHours !== 0 ? `Set to ${format(adjustedStart, 'h:mm a')}` : 'Tap above to adjust'}
+              </button>
+
+              <button
+                onClick={() => { setShowAdjustTime(false); setAdjustHours(0); }}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  background: 'transparent',
+                  color: '#999',
+                  border: 'none',
+                  borderRadius: 10,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
             </div>
-
-            <button
-              onClick={handleAdjustStartTime}
-              disabled={adjustHours <= 0}
-              style={{
-                width: '100%',
-                padding: '16px',
-                background: adjustHours > 0 ? 'linear-gradient(135deg, #eab308, #ca8a04)' : '#ccc',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 12,
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: adjustHours > 0 ? 'pointer' : 'not-allowed',
-                marginBottom: 10,
-              }}
-            >
-              Adjust Start Time
-            </button>
-
-            <button
-              onClick={() => { setShowAdjustTime(false); setAdjustHours(0); }}
-              style={{
-                width: '100%',
-                padding: '14px',
-                background: 'transparent',
-                color: '#999',
-                border: 'none',
-                borderRadius: 10,
-                fontSize: 14,
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Protocol Selection Modal */}
       {showProtocolSelect && (
@@ -2840,17 +3286,15 @@ export function Dashboard() {
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}>
-                  {shareMode === 'group' || shareMode === 'group-done' ? (
-                    <Users size={24} color="#fff" />
-                  ) : (
-                    <Share2 size={24} color="#fff" />
-                  )}
+                  <Users size={24} color="#fff" />
                 </div>
                 <div>
                   <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
-                    {shareMode === 'group' || shareMode === 'group-done' ? 'Create Group' : 'Share'}
+                    {shareMode === 'link-done' ? 'Invite Created!' : 'Share With a Friend'}
                   </h2>
-                  <p style={{ margin: 0, fontSize: 13, color: '#666' }}>See each other's fasts live</p>
+                  <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
+                    {shareMode === 'link-done' ? 'Send this link to connect' : 'See each other\'s fasts live'}
+                  </p>
                 </div>
               </div>
               <button
@@ -2858,8 +3302,9 @@ export function Dashboard() {
                   setShowShareModal(false);
                   setShareToFastId(null);
                   setCopiedShareToken(null);
-                  setCreatedGroupCode(null);
+                  setCreatedInviteCode(null);
                   setShareMode('choose');
+                  setShareShowNetwork(false);
                 }}
                 style={{
                   width: 32,
@@ -2878,114 +3323,93 @@ export function Dashboard() {
             </div>
 
 
-            {/* Choose Mode - Initial state */}
+            {/* Choose Mode - show existing connections or redirect to link mode */}
             {shareMode === 'choose' && (
               <>
-                {/* Show existing groups if user has any */}
-                {userGroups.length > 0 && (
+                {/* Show existing connections */}
+                {userConnections.length > 0 && (
                   <div style={{ marginBottom: 20 }}>
                     <div style={{ fontSize: 12, color: '#666', fontWeight: 600, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Your Groups
+                      Your Fasting Buddies
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {userGroups.slice(0, 4).map((membership) => (
-                        <button
-                          key={membership.group.id}
-                          onClick={() => navigate(`/group/${membership.group.invite_code}`)}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                      {userConnections.slice(0, 4).map((connection) => (
+                        <div
+                          key={connection.connection_id}
                           style={{
                             padding: '10px 14px',
-                            background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                            background: connection.current_fast ? 'linear-gradient(135deg, #22c55e, #16a34a)' : '#f0f0f0',
                             border: 'none',
                             borderRadius: 20,
-                            cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             gap: 6,
-                            color: '#fff',
+                            color: connection.current_fast ? '#fff' : '#666',
                             fontSize: 13,
                             fontWeight: 600,
                           }}
                         >
-                          <Users size={14} />
-                          {membership.group.name}
-                        </button>
+                          {connection.current_fast ? <Flame size={14} /> : <Users size={14} />}
+                          {connection.display_name}
+                        </div>
                       ))}
-                      <button
-                        onClick={() => setShareMode('group')}
-                        style={{
-                          padding: '10px 14px',
-                          background: '#f5f3ff',
-                          border: '2px dashed rgba(139, 92, 246, 0.4)',
-                          borderRadius: 20,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          color: '#8b5cf6',
-                          fontSize: 13,
-                          fontWeight: 600,
-                        }}
-                      >
-                        <Plus size={14} />
-                        New Group
-                      </button>
                     </div>
                   </div>
                 )}
 
-                {/* Create new group - only option now (always two-way) */}
-                {userGroups.length === 0 && (
+                {/* Create new connection */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+                  borderRadius: 16,
+                  padding: 20,
+                  textAlign: 'center',
+                }}>
                   <div style={{
-                    background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
-                    borderRadius: 16,
-                    padding: 20,
-                    textAlign: 'center',
+                    width: 56,
+                    height: 56,
+                    borderRadius: 14,
+                    background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 16px',
                   }}>
-                    <div style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: 14,
-                      background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      margin: '0 auto 16px',
-                    }}>
-                      <Users size={28} color="#fff" />
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: '#333', marginBottom: 8 }}>
-                      Fast Together
-                    </div>
-                    <div style={{ fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 1.5 }}>
-                      Create a group and invite friends. You'll see each other's progress live - always two-way!
-                    </div>
-                    <button
-                      onClick={() => setShareMode('group')}
-                      style={{
-                        padding: '14px 28px',
-                        background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 12,
-                        fontSize: 16,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 8,
-                      }}
-                    >
-                      <Plus size={18} />
-                      Create Group
-                    </button>
+                    <Users size={28} color="#fff" />
                   </div>
-                )}
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#333', marginBottom: 8 }}>
+                    Share With a Friend
+                  </div>
+                  <div style={{ fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 1.5 }}>
+                    Create an invite link. When they accept, you'll both see each other's fasting progress live!
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShareName(profile?.name || '');
+                      setShareMode('link');
+                    }}
+                    style={{
+                      padding: '14px 28px',
+                      background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 12,
+                      fontSize: 16,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <Plus size={18} />
+                    Create Invite
+                  </button>
+                </div>
               </>
             )}
 
-            {/* Share Link Done */}
-            {shareMode === 'link-done' && copiedShareToken && (
-              /* Share link created - show sharing options */
+            {/* Connection Invite Created */}
+            {shareMode === 'link-done' && createdInviteCode && (
               <>
                 <div style={{
                   background: '#f0fdf4',
@@ -2995,7 +3419,7 @@ export function Dashboard() {
                   marginBottom: 20,
                 }}>
                   <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, marginBottom: 8 }}>
-                    SHARE LINK READY
+                    INVITE LINK READY
                   </div>
                   <div style={{
                     display: 'flex',
@@ -3005,7 +3429,7 @@ export function Dashboard() {
                     <input
                       type="text"
                       readOnly
-                      value={`${window.location.origin}/share/${copiedShareToken}`}
+                      value={`${window.location.origin}/connect/${createdInviteCode}`}
                       style={{
                         flex: 1,
                         padding: '10px 12px',
@@ -3018,7 +3442,7 @@ export function Dashboard() {
                     />
                     <button
                       onClick={async () => {
-                        await navigator.clipboard.writeText(`${window.location.origin}/share/${copiedShareToken}`);
+                        await navigator.clipboard.writeText(`${window.location.origin}/connect/${createdInviteCode}`);
                       }}
                       style={{
                         display: 'flex',
@@ -3034,10 +3458,14 @@ export function Dashboard() {
                         cursor: 'pointer',
                       }}
                     >
-                      <Check size={16} /> Copied!
+                      <Check size={16} /> Copy
                     </button>
                   </div>
                 </div>
+
+                <p style={{ color: '#666', fontSize: 14, marginBottom: 16, textAlign: 'center' }}>
+                  When they click this link and sign in, you'll both see each other's fasting progress!
+                </p>
 
                 {/* Quick share buttons */}
                 <div style={{
@@ -3047,8 +3475,8 @@ export function Dashboard() {
                 }}>
                   <button
                     onClick={() => {
-                      const shareUrl = `${window.location.origin}/share/${copiedShareToken}`;
-                      const text = `I'm ${Math.floor(elapsedHours)}+ hours into my fast! Watch my progress live and maybe join me?`;
+                      const shareUrl = `${window.location.origin}/connect/${createdInviteCode}`;
+                      const text = `Want to fast together? Accept my invite and we'll see each other's progress live!`;
                       window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + shareUrl)}`, '_blank');
                     }}
                     style={{
@@ -3074,8 +3502,8 @@ export function Dashboard() {
                   </button>
                   <button
                     onClick={() => {
-                      const shareUrl = `${window.location.origin}/share/${copiedShareToken}`;
-                      const text = `I'm ${Math.floor(elapsedHours)}+ hours into my fast! Watch my progress live: ${shareUrl}`;
+                      const shareUrl = `${window.location.origin}/connect/${createdInviteCode}`;
+                      const text = `Want to fast together? Accept my invite: ${shareUrl}`;
                       window.open(`sms:?body=${encodeURIComponent(text)}`, '_self');
                     }}
                     style={{
@@ -3103,11 +3531,11 @@ export function Dashboard() {
                 {'share' in navigator && (
                   <button
                     onClick={async () => {
-                      const shareUrl = `${window.location.origin}/share/${copiedShareToken}`;
+                      const shareUrl = `${window.location.origin}/connect/${createdInviteCode}`;
                       try {
                         await navigator.share({
-                          title: 'Watch My Fast Live',
-                          text: `I'm ${Math.floor(elapsedHours)}+ hours in! Join me?`,
+                          title: 'Fast Together',
+                          text: `Want to fast together? Accept my invite and we'll see each other's progress live!`,
                           url: shareUrl,
                         });
                       } catch (e) {
@@ -3132,15 +3560,16 @@ export function Dashboard() {
                     }}
                   >
                     <Share2 size={18} />
-                    More Sharing Options...
+                    More Options...
                   </button>
                 )}
 
                 <button
                   onClick={() => {
                     setShowShareModal(false);
-                    setShareToFastId(null);
-                    setCopiedShareToken(null);
+                    setCreatedInviteCode(null);
+                    setShareMode('choose');
+                    setShareShowNetwork(false);
                   }}
                   style={{
                     width: '100%',
@@ -3159,96 +3588,20 @@ export function Dashboard() {
               </>
             )}
 
-            {/* Share Link Form */}
+            {/* Create Connection Invite Form */}
             {shareMode === 'link' && (
               <>
-                {/* Preview of what recipient will see */}
-                {(() => {
-                  // Find the fast being shared (current or from history)
-                  const fastToShare = shareToFastId === currentFast?.id
-                    ? currentFast
-                    : pastFasts.find((f) => f.id === shareToFastId) || currentFast;
-
-                  // Calculate duration for the fast being shared
-                  let previewHours = 0;
-                  let previewMins = 0;
-                  let isOngoing = false;
-
-                  if (fastToShare) {
-                    const startTime = new Date(fastToShare.start_time).getTime();
-                    const endTime = fastToShare.end_time
-                      ? new Date(fastToShare.end_time).getTime()
-                      : Date.now();
-                    const durationMs = endTime - startTime;
-                    const totalHours = durationMs / (1000 * 60 * 60);
-                    previewHours = Math.floor(totalHours);
-                    previewMins = Math.floor((totalHours - previewHours) * 60);
-                    isOngoing = !fastToShare.end_time;
-                  }
-
-                  // Get milestone for preview
-                  const previewMilestone = FASTING_MILESTONES.filter(m => m.hour <= (previewHours + previewMins / 60)).pop() || FASTING_MILESTONES[0];
-
-                  return (
-                    <div style={{ marginBottom: 20 }}>
-                      <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Preview - What they'll see
-                      </div>
-                      <div style={{
-                        background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-                        borderRadius: 16,
-                        padding: 16,
-                        textAlign: 'center',
-                      }}>
-                        {/* Mini preview card */}
-                        <div style={{
-                          background: 'white',
-                          borderRadius: 12,
-                          padding: 16,
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-                        }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: '#166534', marginBottom: 8 }}>
-                            {shareName || profile?.name || 'You'} {isOngoing ? 'is fasting!' : 'completed a fast!'}
-                          </div>
-                          <div style={{
-                            fontSize: 28,
-                            fontWeight: 800,
-                            color: previewMilestone?.color || '#22c55e',
-                            fontVariantNumeric: 'tabular-nums',
-                            marginBottom: 8,
-                          }}>
-                            {previewHours}:{previewMins.toString().padStart(2, '0')}
-                          </div>
-                          <div style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            padding: '6px 12px',
-                            background: `${previewMilestone?.color}15`,
-                            borderRadius: 20,
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: previewMilestone?.color,
-                          }}>
-                            {previewMilestone?.icon === 'flame' && <Flame size={14} />}
-                            {previewMilestone?.icon === 'brain' && <Brain size={14} />}
-                            {previewMilestone?.icon === 'zap' && <Zap size={14} />}
-                            {previewMilestone?.icon === 'heart' && <Heart size={14} />}
-                            {previewMilestone?.icon === 'sparkles' && <Sparkles size={14} />}
-                            {previewMilestone?.icon === 'clock' && <Clock size={14} />}
-                            {previewMilestone?.icon === 'check' && <CheckCircle2 size={14} />}
-                            {previewMilestone?.title}
-                          </div>
-                          {isOngoing && (
-                            <div style={{ fontSize: 11, color: '#16a34a', marginTop: 8, fontWeight: 500 }}>
-                              Live updating timer
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
+                {/* Explanation */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 20,
+                }}>
+                  <p style={{ margin: 0, fontSize: 14, color: '#5b21b6', lineHeight: 1.5 }}>
+                    Create an invite link to share with a friend. Once they accept, you'll both see each other's fasting progress in real-time!
+                  </p>
+                </div>
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginBottom: 8, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
@@ -3258,7 +3611,7 @@ export function Dashboard() {
                     type="text"
                     value={shareName}
                     onChange={(e) => setShareName(e.target.value)}
-                    placeholder="Enter your name"
+                    placeholder="How should they see you?"
                     style={{
                       width: '100%',
                       padding: '14px 16px',
@@ -3272,49 +3625,51 @@ export function Dashboard() {
                   />
                 </div>
 
-                {/* Include Notes Toggle */}
-                <button
-                  onClick={() => setShareIncludeNotes(!shareIncludeNotes)}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '14px 16px',
-                    background: shareIncludeNotes ? 'rgba(139, 92, 246, 0.1)' : '#f5f5f5',
-                    border: `2px solid ${shareIncludeNotes ? 'rgba(139, 92, 246, 0.4)' : 'transparent'}`,
-                    borderRadius: 12,
-                    cursor: 'pointer',
-                    marginBottom: 20,
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  <div style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 6,
-                    background: shareIncludeNotes ? '#8b5cf6' : '#ddd',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'all 0.2s',
-                  }}>
-                    {shareIncludeNotes && <Check size={16} color="#fff" />}
-                  </div>
-                  <div style={{ flex: 1, textAlign: 'left' }}>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: '#333' }}>
-                      Include Your Journey
+                {/* Show Network Toggle - only if user has existing connections */}
+                {userConnections.length > 0 && (
+                  <button
+                    onClick={() => setShareShowNetwork(!shareShowNetwork)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '14px 16px',
+                      background: shareShowNetwork ? 'rgba(139, 92, 246, 0.1)' : '#f5f5f5',
+                      border: `2px solid ${shareShowNetwork ? 'rgba(139, 92, 246, 0.4)' : 'transparent'}`,
+                      borderRadius: 12,
+                      cursor: 'pointer',
+                      marginBottom: 20,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <div style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: 6,
+                      background: shareShowNetwork ? '#8b5cf6' : '#ddd',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s',
+                    }}>
+                      {shareShowNetwork && <Check size={16} color="#fff" />}
                     </div>
-                    <div style={{ fontSize: 13, color: '#888' }}>
-                      Share your mood, energy & notes
+                    <div style={{ flex: 1, textAlign: 'left' }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: '#333' }}>
+                        Let them see your network
+                      </div>
+                      <div style={{ fontSize: 13, color: '#888' }}>
+                        They'll also see {userConnections.length} other{userConnections.length !== 1 ? 's' : ''} you're sharing with
+                      </div>
                     </div>
-                  </div>
-                  <MessageSquare size={20} color={shareIncludeNotes ? '#8b5cf6' : '#bbb'} />
-                </button>
+                    <Users size={20} color={shareShowNetwork ? '#8b5cf6' : '#bbb'} />
+                  </button>
+                )}
 
                 <button
                   onClick={async () => {
-                    if (!user || !shareToFastId || !shareName.trim()) return;
+                    if (!user || !shareName.trim()) return;
 
                     setIsCreatingShare(true);
                     try {
@@ -3324,27 +3679,28 @@ export function Dashboard() {
                         await refreshProfile();
                       }
 
-                      // Check if share already exists for this fast
-                      const existingShare = await getExistingShare(shareToFastId, user.id);
+                      // Create connection invite
+                      const connection = await createShareConnection(
+                        user.id,
+                        shareName.trim(),
+                        shareShowNetwork
+                      );
 
-                      let shareToken: string;
-                      if (existingShare) {
-                        shareToken = existingShare.share_token;
-                      } else {
-                        const share = await createShare(shareToFastId, user.id, shareName, shareIncludeNotes);
-                        if (!share) throw new Error('Failed to create share');
-                        shareToken = share.share_token;
-                      }
+                      if (!connection) throw new Error('Failed to create invite');
 
-                      // Copy share link
-                      const shareUrl = `${window.location.origin}/share/${shareToken}`;
-                      await navigator.clipboard.writeText(shareUrl);
+                      // Copy invite link
+                      const inviteUrl = `${window.location.origin}/connect/${connection.invite_code}`;
+                      await navigator.clipboard.writeText(inviteUrl);
 
-                      setCopiedShareToken(shareToken);
+                      setCreatedInviteCode(connection.invite_code);
                       setShareMode('link-done');
+
+                      // Refresh pending invites
+                      const invites = await getPendingInvites(user.id);
+                      setPendingInvites(invites);
                     } catch (e) {
-                      console.error('Failed to create share:', e);
-                      alert('Failed to create share link. Please try again.');
+                      console.error('Failed to create invite:', e);
+                      alert('Failed to create invite link. Please try again.');
                     } finally {
                       setIsCreatingShare(false);
                     }
@@ -3371,7 +3727,7 @@ export function Dashboard() {
                     <>Creating...</>
                   ) : (
                     <>
-                      <Link size={18} /> Create Share Link
+                      <Link size={18} /> Create Invite Link
                     </>
                   )}
                 </button>
@@ -3379,7 +3735,7 @@ export function Dashboard() {
                 <button
                   onClick={() => {
                     setShowShareModal(false);
-                    setShareToFastId(null);
+                    setShareShowNetwork(false);
                   }}
                   style={{
                     width: '100%',
@@ -3397,286 +3753,6 @@ export function Dashboard() {
               </>
             )}
 
-            {/* Create Group Form */}
-            {shareMode === 'group' && (
-              <>
-                {/* Explanation */}
-                <div style={{
-                  background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 20,
-                }}>
-                  <p style={{ margin: 0, fontSize: 14, color: '#5b21b6', lineHeight: 1.5 }}>
-                    Create a group to fast together with friends. Share the invite link and see each other's progress in real-time!
-                  </p>
-                </div>
-
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginBottom: 8, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-                    Group Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    placeholder="e.g., Monday Fasters, Office Challenge"
-                    style={{
-                      width: '100%',
-                      padding: '14px 16px',
-                      border: '2px solid rgba(139, 92, 246, 0.3)',
-                      borderRadius: 12,
-                      fontSize: 16,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                    autoFocus
-                  />
-                </div>
-
-                <button
-                  onClick={async () => {
-                    if (!user || !newGroupName.trim()) return;
-
-                    setIsCreatingGroup(true);
-                    try {
-                      const displayName = profile?.name || shareName || 'Anonymous';
-                      const result = await createShareGroup(newGroupName.trim(), user.id, displayName);
-
-                      if (result?.group) {
-                        setCreatedGroupCode(result.group.invite_code);
-                        setShareMode('group-done');
-                        setNewGroupName('');
-                        // Refresh user groups
-                        const groups = await getUserGroups(user.id);
-                        setUserGroups(groups);
-                      } else {
-                        alert('Failed to create group. Please try again.');
-                      }
-                    } catch (e) {
-                      console.error('Failed to create group:', e);
-                      alert('Failed to create group. Please try again.');
-                    } finally {
-                      setIsCreatingGroup(false);
-                    }
-                  }}
-                  disabled={!newGroupName.trim() || isCreatingGroup}
-                  style={{
-                    width: '100%',
-                    padding: '16px',
-                    background: newGroupName.trim() && !isCreatingGroup ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : '#e5e5e5',
-                    color: newGroupName.trim() && !isCreatingGroup ? '#fff' : '#999',
-                    border: 'none',
-                    borderRadius: 12,
-                    fontSize: 16,
-                    fontWeight: 700,
-                    cursor: newGroupName.trim() && !isCreatingGroup ? 'pointer' : 'not-allowed',
-                    marginBottom: 10,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                  }}
-                >
-                  {isCreatingGroup ? (
-                    <>Creating...</>
-                  ) : (
-                    <>
-                      <Users size={18} /> Create Group
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowShareModal(false);
-                    setShareToFastId(null);
-                    setNewGroupName('');
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    background: 'transparent',
-                    color: '#999',
-                    border: 'none',
-                    borderRadius: 10,
-                    fontSize: 14,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Cancel
-                </button>
-              </>
-            )}
-
-            {/* Group Created - Show Invite Link */}
-            {shareMode === 'group-done' && createdGroupCode && (
-              <>
-                <div style={{
-                  background: '#f0fdf4',
-                  border: '1px solid #bbf7d0',
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 20,
-                }}>
-                  <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, marginBottom: 8 }}>
-                    GROUP CREATED!
-                  </div>
-                  <div style={{
-                    display: 'flex',
-                    gap: 8,
-                    alignItems: 'center',
-                  }}>
-                    <input
-                      type="text"
-                      readOnly
-                      value={`${window.location.origin}/group/${createdGroupCode}`}
-                      style={{
-                        flex: 1,
-                        padding: '10px 12px',
-                        background: '#fff',
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8,
-                        fontSize: 13,
-                        color: '#333',
-                      }}
-                    />
-                    <button
-                      onClick={async () => {
-                        await navigator.clipboard.writeText(`${window.location.origin}/group/${createdGroupCode}`);
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '10px 16px',
-                        background: '#22c55e',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 8,
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Check size={16} /> Copy
-                    </button>
-                  </div>
-                </div>
-
-                <p style={{ color: '#666', fontSize: 14, marginBottom: 16, textAlign: 'center' }}>
-                  Share this link with friends to invite them to your group!
-                </p>
-
-                {/* Quick share buttons */}
-                <div style={{
-                  display: 'flex',
-                  gap: 10,
-                  marginBottom: 16,
-                }}>
-                  <button
-                    onClick={() => {
-                      const shareUrl = `${window.location.origin}/group/${createdGroupCode}`;
-                      const text = `Want to fast with me? I created a group called "${newGroupName}" - tap to join and we can see each other's progress live!`;
-                      window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + shareUrl)}`, '_blank');
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: '12px 16px',
-                      background: '#25D366',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 10,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                    </svg>
-                    WhatsApp
-                  </button>
-                  <button
-                    onClick={() => {
-                      const shareUrl = `${window.location.origin}/group/${createdGroupCode}`;
-                      const text = `Fast with me! Join "${newGroupName}" - we can see each other's progress live: ${shareUrl}`;
-                      window.open(`sms:?body=${encodeURIComponent(text)}`, '_self');
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: '12px 16px',
-                      background: '#333',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 10,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <MessageSquare size={18} />
-                    SMS
-                  </button>
-                </div>
-
-                {/* View Group button */}
-                <button
-                  onClick={() => {
-                    window.location.href = `/group/${createdGroupCode}`;
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '14px 16px',
-                    background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 10,
-                    fontSize: 15,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    marginBottom: 12,
-                  }}
-                >
-                  <Users size={18} />
-                  View Group
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowShareModal(false);
-                    setShareToFastId(null);
-                    setCreatedGroupCode(null);
-                    setShareMode('choose');
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    background: '#f5f5f5',
-                    color: '#666',
-                    border: 'none',
-                    borderRadius: 10,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Done
-                </button>
-              </>
-            )}
           </div>
         </div>
       )}
