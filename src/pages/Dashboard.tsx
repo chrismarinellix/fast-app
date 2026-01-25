@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   getCurrentFast, startFast, endFast, getFastingHistory,
   getFastingNotes, addFastingNote, canStartFast, updateUserProfile,
-  signOut, extendFast, setFastStartTime, confirmFast,
+  signOut, setFastStartTime, confirmFast,
   getUserShares, deleteShare,
   getCommunityFasts,
   createShareConnection, getUserConnections, getPendingInvites,
@@ -328,7 +328,6 @@ export function Dashboard() {
   const [showDiary, setShowDiary] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
-  const [showExtend, setShowExtend] = useState(false);
   const [showAdjustTime, setShowAdjustTime] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareMode, setShareMode] = useState<'choose' | 'link' | 'link-done'>('choose');
@@ -344,7 +343,6 @@ export function Dashboard() {
   const [hoveredCommunityMilestone, setHoveredCommunityMilestone] = useState<{ fastId: string; hour: number } | null>(null);
   const [showProtocolSelect, setShowProtocolSelect] = useState(false);
   const [adjustHours, setAdjustHours] = useState(0);
-  const [extendHours, setExtendHours] = useState(6);
   const [showCompletionSummary, setShowCompletionSummary] = useState(false);
   const [completedFastSummary, setCompletedFastSummary] = useState<{
     hours: number;
@@ -588,16 +586,6 @@ export function Dashboard() {
       alert('Payment error: ' + (error.message || 'Unknown error'));
     }
   };
-
-  const handleExtendFast = useCallback(async () => {
-    if (!currentFast?.id) return;
-
-    const updated = await extendFast(currentFast.id, extendHours);
-    if (updated) {
-      setCurrentFast(updated);
-      setShowExtend(false);
-    }
-  }, [currentFast, extendHours]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -1191,26 +1179,7 @@ export function Dashboard() {
                     cursor: 'pointer',
                   }}
                 >
-                  <Edit3 size={18} /> Fix Start
-                </button>
-
-                <button
-                  onClick={() => setShowExtend(true)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '12px 20px',
-                    background: '#fff',
-                    color: '#3b82f6',
-                    border: '1px solid rgba(59, 130, 246, 0.3)',
-                    borderRadius: 10,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <Plus size={18} /> Add Hours
+                  <Edit3 size={18} /> Adjust Fast
                 </button>
 
                 <button
@@ -2453,125 +2422,7 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Extend Fast Modal */}
-      {showExtend && currentFast && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.6)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 24,
-          zIndex: 100,
-        }}>
-          <div style={{
-            background: '#fff',
-            borderRadius: 20,
-            padding: 36,
-            maxWidth: 400,
-            width: '100%',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              width: 70,
-              height: 70,
-              borderRadius: 16,
-              background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 20px',
-            }}>
-              <Timer size={36} color="#fff" />
-            </div>
-
-            <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800 }}>Extend Your Fast</h2>
-            <p style={{ color: '#666', marginBottom: 24, fontSize: 15 }}>
-              Push further! Add more hours to your current {targetHours}h fast.
-            </p>
-
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                Add hours
-              </div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                {[2, 4, 6, 8, 12].map(hours => (
-                  <button
-                    key={hours}
-                    onClick={() => setExtendHours(hours)}
-                    style={{
-                      width: 50,
-                      height: 50,
-                      borderRadius: 12,
-                      border: extendHours === hours ? '2px solid #3b82f6' : '1px solid rgba(0,0,0,0.1)',
-                      background: extendHours === hours ? 'rgba(59, 130, 246, 0.1)' : '#fff',
-                      color: extendHours === hours ? '#3b82f6' : '#333',
-                      fontSize: 16,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    +{hours}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{
-              background: 'rgba(59, 130, 246, 0.08)',
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 24,
-            }}>
-              <div style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>New target:</div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: '#3b82f6' }}>
-                {targetHours + extendHours} hours
-              </div>
-              <div style={{ fontSize: 13, color: '#999', marginTop: 4 }}>
-                Ends at {format(new Date(fastStartTime! + ((targetHours + extendHours) * 60 * 60 * 1000)), 'h:mm a, EEE')}
-              </div>
-            </div>
-
-            <button
-              onClick={handleExtendFast}
-              style={{
-                width: '100%',
-                padding: '16px 24px',
-                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 12,
-                fontSize: 17,
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 4px 20px rgba(59, 130, 246, 0.3)',
-                marginBottom: 12,
-              }}
-            >
-              Extend by {extendHours} hours
-            </button>
-
-            <button
-              onClick={() => setShowExtend(false)}
-              style={{
-                width: '100%',
-                padding: '14px',
-                background: 'transparent',
-                color: '#999',
-                border: 'none',
-                borderRadius: 10,
-                fontSize: 14,
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Adjust Start Time Modal */}
+      {/* Adjust Fast Modal */}
       {showAdjustTime && currentFast && (() => {
         // Calculate the adjusted start time based on adjustHours (in minutes)
         const currentStartMs = new Date(currentFast.start_time).getTime();
@@ -2613,9 +2464,9 @@ export function Dashboard() {
                 <Edit3 size={36} color="#fff" />
               </div>
 
-              <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800 }}>Fix Start Time</h2>
+              <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800 }}>Adjust Fast</h2>
               <p style={{ color: '#666', marginBottom: 20, fontSize: 15 }}>
-                Tap to adjust when you started
+                Tap to adjust your start time
               </p>
 
               {/* Big time display that updates */}
