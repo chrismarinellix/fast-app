@@ -8,11 +8,22 @@ const supabase = createClient(
 // Admin emails that can access this endpoint
 const ADMIN_EMAILS = ['chrismarinelli@live.com'];
 
+const headers = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+};
+
 export async function handler(event: any) {
+  // Handle preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers, body: '' };
+  }
+
   // Check for auth header
   const authHeader = event.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
   }
 
   const token = authHeader.replace('Bearer ', '');
@@ -21,12 +32,12 @@ export async function handler(event: any) {
   const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
   if (authError || !user) {
-    return { statusCode: 401, body: JSON.stringify({ error: 'Invalid token' }) };
+    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid token' }) };
   }
 
   // Check if user is admin
   if (!ADMIN_EMAILS.includes(user.email || '')) {
-    return { statusCode: 403, body: JSON.stringify({ error: 'Not authorized' }) };
+    return { statusCode: 403, headers, body: JSON.stringify({ error: 'Not authorized' }) };
   }
 
   try {
@@ -38,7 +49,7 @@ export async function handler(event: any) {
 
     if (profilesError) {
       console.error('Error fetching profiles:', profilesError);
-      return { statusCode: 500, body: JSON.stringify({ error: 'Failed to fetch profiles' }) };
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to fetch profiles' }) };
     }
 
     // Get all fasting sessions
@@ -82,9 +93,7 @@ export async function handler(event: any) {
 
     return {
       statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         stats: {
           totalUsers,
@@ -110,6 +119,6 @@ export async function handler(event: any) {
     };
   } catch (error: any) {
     console.error('Admin stats error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
   }
 }

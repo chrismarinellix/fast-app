@@ -142,12 +142,19 @@ export function Admin() {
         },
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to fetch admin data');
+      const text = await response.text();
+
+      // Try to parse as JSON
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Server returned invalid response: ${text.substring(0, 100)}`);
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch admin data');
+      }
       setStats(data.stats);
       setUsers(data.users || []);
       setActiveFasts(data.activeFasts || []);
