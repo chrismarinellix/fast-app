@@ -12,7 +12,7 @@ import {
   getCurrentFast, startFast, endFast, getFastingHistory,
   getFastingNotes, addFastingNote, canStartFast, updateUserProfile,
   signOut, extendFast, setFastStartTime,
-  createShare, getExistingShare, getUserShares, deleteShare,
+  getUserShares, deleteShare,
   getCommunityFasts,
   createShareConnection, getUserConnections, getPendingInvites,
   removeShareConnection,
@@ -333,9 +333,7 @@ export function Dashboard() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareMode, setShareMode] = useState<'choose' | 'link' | 'link-done'>('choose');
   const [shareName, setShareName] = useState('');
-  const [shareIncludeNotes, setShareIncludeNotes] = useState(false);
   const [shareShowNetwork, setShareShowNetwork] = useState(false);
-  const [shareToFastId, setShareToFastId] = useState<string | null>(null);
   const [isCreatingShare, setIsCreatingShare] = useState(false);
   const [copiedShareToken, setCopiedShareToken] = useState<string | null>(null);
   const [createdInviteCode, setCreatedInviteCode] = useState<string | null>(null);
@@ -346,7 +344,6 @@ export function Dashboard() {
   const [hoveredCommunityMilestone, setHoveredCommunityMilestone] = useState<{ fastId: string; hour: number } | null>(null);
   const [showProtocolSelect, setShowProtocolSelect] = useState(false);
   const [adjustHours, setAdjustHours] = useState(0);
-  const [newStartTime, setNewStartTime] = useState<string>('');
   const [extendHours, setExtendHours] = useState(6);
   const [showCompletionSummary, setShowCompletionSummary] = useState(false);
   const [completedFastSummary, setCompletedFastSummary] = useState<{
@@ -569,31 +566,6 @@ export function Dashboard() {
       setShowExtend(false);
     }
   }, [currentFast, extendHours]);
-
-  const handleAdjustStartTime = useCallback(async () => {
-    if (!currentFast || !newStartTime) return;
-
-    try {
-      // Parse the time input and create a new date with today's date (or yesterday if time is later than now)
-      const [hours, minutes] = newStartTime.split(':').map(Number);
-      const newDate = new Date();
-      newDate.setHours(hours, minutes, 0, 0);
-
-      // If the selected time is after current time, it must be from yesterday
-      if (newDate > new Date()) {
-        newDate.setDate(newDate.getDate() - 1);
-      }
-
-      const updatedFast = await setFastStartTime(currentFast.id, newDate);
-      if (updatedFast) {
-        setCurrentFast(updatedFast);
-        setShowAdjustTime(false);
-        setNewStartTime('');
-      }
-    } catch (err) {
-      console.error('Failed to adjust start time:', err);
-    }
-  }, [currentFast, newStartTime]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -1150,12 +1122,8 @@ export function Dashboard() {
                 <button
                   onClick={() => {
                     setShareName(profile?.name || '');
-                    setShareToFastId(currentFast?.id || null);
-                    setShareIncludeNotes(false);
                     setShareMode('choose');
                     setCopiedShareToken(null);
-                    setCreatedGroupCode(null);
-                    setNewGroupName('');
                     setShowShareModal(true);
                   }}
                   style={{
@@ -1873,8 +1841,8 @@ export function Dashboard() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setShareName(profile?.name || '');
-                                setShareToFastId(fast.id);
-                                setShareIncludeNotes(fastNotes.length > 0);
+                                setShareMode('choose');
+                                setCopiedShareToken(null);
                                 setShowShareModal(true);
                               }}
                               style={{
@@ -2697,8 +2665,9 @@ export function Dashboard() {
                 </button>
               </div>
 
-                {/* Reset button */}
-                {adjustHours !== 0 && (
+              {/* Reset button */}
+              {adjustHours !== 0 && (
+                <div style={{ textAlign: 'center', marginBottom: 16 }}>
                   <button
                     onClick={() => setAdjustHours(0)}
                     style={{
@@ -2713,8 +2682,8 @@ export function Dashboard() {
                   >
                     Reset
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
               <button
                 onClick={async () => {
@@ -3300,7 +3269,6 @@ export function Dashboard() {
               <button
                 onClick={() => {
                   setShowShareModal(false);
-                  setShareToFastId(null);
                   setCopiedShareToken(null);
                   setCreatedInviteCode(null);
                   setShareMode('choose');

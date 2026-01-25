@@ -4,7 +4,6 @@ import {
   Flame, Clock, Users, ArrowLeft, Check, Zap, Brain,
   Heart, Sparkles, CheckCircle2
 } from 'lucide-react';
-import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getConnectionByInviteCode, acceptShareConnection,

@@ -58,6 +58,7 @@ export async function handler(event: any) {
     const freeUsers = totalUsers - paidUsers;
     const totalFasts = sessions?.length || 0;
     const completedFasts = sessions?.filter(s => s.completed).length || 0;
+    const activeFasts = sessions?.filter(s => s.end_time === null).length || 0;
 
     // Recent signups (last 7 days)
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -65,6 +66,19 @@ export async function handler(event: any) {
 
     // Revenue estimate ($5 per paid user)
     const totalRevenue = paidUsers * 5;
+
+    // Get active fasts with user details
+    const activeFastsList = sessions?.filter(s => s.end_time === null).map(fast => {
+      const profile = profiles?.find(p => p.id === fast.user_id);
+      return {
+        id: fast.id,
+        userId: fast.user_id,
+        email: profile?.email || 'Unknown',
+        name: profile?.name || null,
+        startTime: fast.start_time,
+        targetHours: fast.target_hours || 24,
+      };
+    }) || [];
 
     return {
       statusCode: 200,
@@ -78,6 +92,7 @@ export async function handler(event: any) {
           freeUsers,
           totalFasts,
           completedFasts,
+          activeFasts,
           recentSignups,
           totalRevenue,
         },
@@ -90,6 +105,7 @@ export async function handler(event: any) {
           fastsCompleted: p.fasts_completed,
           createdAt: p.created_at,
         })),
+        activeFasts: activeFastsList,
       }),
     };
   } catch (error: any) {
