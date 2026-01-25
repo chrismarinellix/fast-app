@@ -3,6 +3,13 @@
   publish = "dist"
   functions = "netlify/functions"
 
+# Functions should not be redirected
+[[redirects]]
+  from = "/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# SPA fallback for client-side routing
 [[redirects]]
   from = "/*"
   to = "/index.html"
