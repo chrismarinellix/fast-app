@@ -5,9 +5,9 @@ import {
   Heart, Sparkles, Clock, History, Share2, Edit3,
   LogOut, TrendingUp, Award, Target, Plus, Settings,
   Trash2, Link, Eye, Copy, X, Check, MessageSquare, Users, Bell,
-  Sun, Moon
+  Sun, Moon, Trophy
 } from 'lucide-react';
-import { format, isToday, isYesterday } from 'date-fns';
+import { format, isToday, isYesterday, subDays, startOfDay, differenceInDays } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, themeColors } from '../contexts/ThemeContext';
 import {
@@ -241,6 +241,214 @@ const FEELING_OPTIONS = {
 
 const FAST_DURATION = 24 * 60 * 60 * 1000;
 
+// Gamification: Achievements with health-related humor
+const ACHIEVEMENTS = [
+  // Beginner achievements
+  { id: 'first_fast', name: 'Hangry No More', desc: 'Complete your first fast', icon: '🍽️', points: 50, requirement: { type: 'fasts', count: 1 } },
+  { id: 'three_fasts', name: 'Third Time\'s the Charm', desc: 'Complete 3 fasts', icon: '🎯', points: 100, requirement: { type: 'fasts', count: 3 } },
+  { id: 'five_fasts', name: 'High Five Your Liver', desc: 'Complete 5 fasts', icon: '🖐️', points: 150, requirement: { type: 'fasts', count: 5 } },
+  { id: 'ten_fasts', name: 'Double Digits of Discipline', desc: 'Complete 10 fasts', icon: '🔟', points: 300, requirement: { type: 'fasts', count: 10 } },
+
+  // Milestone achievements
+  { id: 'ketosis_king', name: 'Ketosis Royalty', desc: 'Reach ketosis (12h) 5 times', icon: '👑', points: 200, requirement: { type: 'milestone_reached', milestone: 12, count: 5 } },
+  { id: 'autophagy_ace', name: 'Autophagy Ace', desc: 'Trigger autophagy (16h) 3 times', icon: '🧹', points: 250, requirement: { type: 'milestone_reached', milestone: 16, count: 3 } },
+  { id: 'fat_burner', name: 'Fat-Burning Furnace', desc: 'Hit peak fat burning (18h) 3 times', icon: '🔥', points: 300, requirement: { type: 'milestone_reached', milestone: 18, count: 3 } },
+
+  // Duration achievements
+  { id: 'day_warrior', name: 'Full Day Warrior', desc: 'Complete a 24-hour fast', icon: '⚔️', points: 400, requirement: { type: 'duration', hours: 24 } },
+  { id: 'overtime', name: 'Overtime Champion', desc: 'Complete a 36-hour fast', icon: '🏆', points: 600, requirement: { type: 'duration', hours: 36 } },
+  { id: 'two_day_titan', name: 'Two-Day Titan', desc: 'Complete a 48-hour fast', icon: '💪', points: 800, requirement: { type: 'duration', hours: 48 } },
+  { id: 'three_day_legend', name: 'Three-Day Legend', desc: 'Complete a 72-hour fast', icon: '🦸', points: 1200, requirement: { type: 'duration', hours: 72 } },
+
+  // Streak achievements
+  { id: 'streak_3', name: 'Hat Trick Faster', desc: '3-day fasting streak', icon: '🎩', points: 150, requirement: { type: 'streak', days: 3 } },
+  { id: 'streak_7', name: 'Week Warrior', desc: '7-day fasting streak', icon: '📅', points: 350, requirement: { type: 'streak', days: 7 } },
+  { id: 'streak_14', name: 'Fortnight of Fortitude', desc: '14-day fasting streak', icon: '🏰', points: 700, requirement: { type: 'streak', days: 14 } },
+  { id: 'streak_30', name: 'Monthly Monk Mode', desc: '30-day fasting streak', icon: '🧘', points: 1500, requirement: { type: 'streak', days: 30 } },
+
+  // Fun/humorous achievements
+  { id: 'pizza_dodger', name: 'Pizza Dodger', desc: 'Fast through a Friday night', icon: '🍕', points: 100, requirement: { type: 'special', condition: 'friday_fast' } },
+  { id: 'brunch_skipper', name: 'Brunch Skipper', desc: 'Fast through a Sunday brunch', icon: '🥐', points: 100, requirement: { type: 'special', condition: 'sunday_fast' } },
+  { id: 'midnight_oil', name: 'Burning Midnight Oil', desc: 'Start a fast after midnight', icon: '🌙', points: 75, requirement: { type: 'special', condition: 'midnight_start' } },
+  { id: 'early_bird', name: 'Early Bird Gets the Ketones', desc: 'Start a fast before 6am', icon: '🐦', points: 75, requirement: { type: 'special', condition: 'early_start' } },
+
+  // Total hours achievements
+  { id: 'century', name: 'Century Club', desc: 'Fast 100 total hours', icon: '💯', points: 500, requirement: { type: 'total_hours', hours: 100 } },
+  { id: 'marathoner', name: 'Metabolic Marathoner', desc: 'Fast 500 total hours', icon: '🏃', points: 1500, requirement: { type: 'total_hours', hours: 500 } },
+  { id: 'olympian', name: 'Fasting Olympian', desc: 'Fast 1000 total hours', icon: '🥇', points: 3000, requirement: { type: 'total_hours', hours: 1000 } },
+];
+
+// XP Level thresholds
+const XP_LEVELS = [
+  { level: 1, name: 'Fasting Newbie', minXP: 0, maxXP: 100 },
+  { level: 2, name: 'Hunger Apprentice', minXP: 100, maxXP: 300 },
+  { level: 3, name: 'Ketone Curious', minXP: 300, maxXP: 600 },
+  { level: 4, name: 'Fat-Adapted Novice', minXP: 600, maxXP: 1000 },
+  { level: 5, name: 'Autophagy Awakened', minXP: 1000, maxXP: 1500 },
+  { level: 6, name: 'Metabolic Maestro', minXP: 1500, maxXP: 2200 },
+  { level: 7, name: 'Insulin Insurgent', minXP: 2200, maxXP: 3000 },
+  { level: 8, name: 'Glucose Guardian', minXP: 3000, maxXP: 4000 },
+  { level: 9, name: 'Mitochondria Master', minXP: 4000, maxXP: 5500 },
+  { level: 10, name: 'Fasting Sensei', minXP: 5500, maxXP: 7500 },
+  { level: 11, name: 'Cellular Sage', minXP: 7500, maxXP: 10000 },
+  { level: 12, name: 'Longevity Legend', minXP: 10000, maxXP: Infinity },
+];
+
+// Calculate XP from fasting history
+function calculateXP(pastFasts: FastingSession[]): { totalXP: number; level: typeof XP_LEVELS[0]; progress: number; unlockedAchievements: string[] } {
+  let totalXP = 0;
+  const unlockedAchievements: string[] = [];
+
+  // Base XP: 10 XP per hour fasted
+  pastFasts.forEach(fast => {
+    if (fast.end_time) {
+      const hours = (new Date(fast.end_time).getTime() - new Date(fast.start_time).getTime()) / (1000 * 60 * 60);
+      totalXP += Math.floor(hours * 10);
+
+      // Bonus XP for completing target
+      if (fast.completed) {
+        totalXP += 25;
+      }
+    }
+  });
+
+  // Check achievements
+  const completedFasts = pastFasts.filter(f => f.completed);
+  const totalHours = pastFasts.reduce((acc, f) => {
+    if (f.end_time) {
+      return acc + (new Date(f.end_time).getTime() - new Date(f.start_time).getTime()) / (1000 * 60 * 60);
+    }
+    return acc;
+  }, 0);
+
+  ACHIEVEMENTS.forEach(achievement => {
+    let unlocked = false;
+
+    switch (achievement.requirement.type) {
+      case 'fasts':
+        unlocked = completedFasts.length >= (achievement.requirement.count || 0);
+        break;
+      case 'duration':
+        unlocked = pastFasts.some(f => {
+          if (f.end_time && f.completed) {
+            const hours = (new Date(f.end_time).getTime() - new Date(f.start_time).getTime()) / (1000 * 60 * 60);
+            return hours >= (achievement.requirement.hours || 0);
+          }
+          return false;
+        });
+        break;
+      case 'total_hours':
+        unlocked = totalHours >= (achievement.requirement.hours || 0);
+        break;
+      case 'streak':
+        // Calculate streak
+        const sortedFasts = [...completedFasts].sort((a, b) =>
+          new Date(b.end_time!).getTime() - new Date(a.end_time!).getTime()
+        );
+        let currentStreak = 0;
+        let lastDate: Date | null = null;
+        for (const fast of sortedFasts) {
+          const fastDate = startOfDay(new Date(fast.end_time!));
+          if (!lastDate) {
+            currentStreak = 1;
+            lastDate = fastDate;
+          } else {
+            const daysDiff = differenceInDays(lastDate, fastDate);
+            if (daysDiff === 1) {
+              currentStreak++;
+              lastDate = fastDate;
+            } else if (daysDiff > 1) {
+              break;
+            }
+          }
+        }
+        unlocked = currentStreak >= (achievement.requirement.days || 0);
+        break;
+      case 'special':
+        // Special achievements based on conditions
+        if (achievement.requirement.condition === 'friday_fast') {
+          unlocked = completedFasts.some(f => new Date(f.start_time).getDay() === 5);
+        } else if (achievement.requirement.condition === 'sunday_fast') {
+          unlocked = completedFasts.some(f => new Date(f.start_time).getDay() === 0);
+        } else if (achievement.requirement.condition === 'midnight_start') {
+          unlocked = completedFasts.some(f => {
+            const hour = new Date(f.start_time).getHours();
+            return hour >= 0 && hour < 4;
+          });
+        } else if (achievement.requirement.condition === 'early_start') {
+          unlocked = completedFasts.some(f => {
+            const hour = new Date(f.start_time).getHours();
+            return hour >= 4 && hour < 6;
+          });
+        }
+        break;
+    }
+
+    if (unlocked) {
+      unlockedAchievements.push(achievement.id);
+      totalXP += achievement.points;
+    }
+  });
+
+  // Find current level
+  const level = XP_LEVELS.find(l => totalXP >= l.minXP && totalXP < l.maxXP) || XP_LEVELS[XP_LEVELS.length - 1];
+  const progress = level.maxXP === Infinity ? 100 : ((totalXP - level.minXP) / (level.maxXP - level.minXP)) * 100;
+
+  return { totalXP, level, progress, unlockedAchievements };
+}
+
+// Build contribution data for the chart (last 60 days)
+function buildContributionData(pastFasts: FastingSession[]): { date: Date; hours: number; level: number }[] {
+  const data: { date: Date; hours: number; level: number }[] = [];
+  const today = startOfDay(new Date());
+
+  for (let i = 59; i >= 0; i--) {
+    const date = subDays(today, i);
+    const dayStart = date.getTime();
+    const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+
+    // Calculate hours fasted on this day
+    let hoursOnDay = 0;
+    pastFasts.forEach(fast => {
+      const fastStart = new Date(fast.start_time).getTime();
+      const fastEnd = fast.end_time ? new Date(fast.end_time).getTime() : Date.now();
+
+      // Check if fast overlaps with this day
+      if (fastStart < dayEnd && fastEnd > dayStart) {
+        const overlapStart = Math.max(fastStart, dayStart);
+        const overlapEnd = Math.min(fastEnd, dayEnd);
+        hoursOnDay += (overlapEnd - overlapStart) / (1000 * 60 * 60);
+      }
+    });
+
+    // Level based on hours: 0=none, 1=<8h, 2=8-12h, 3=12-16h, 4=16-20h, 5=20-24h, 6=24h+
+    let level = 0;
+    if (hoursOnDay > 0) {
+      if (hoursOnDay < 8) level = 1;
+      else if (hoursOnDay < 12) level = 2;
+      else if (hoursOnDay < 16) level = 3;
+      else if (hoursOnDay < 20) level = 4;
+      else if (hoursOnDay < 24) level = 5;
+      else level = 6;
+    }
+
+    data.push({ date, hours: hoursOnDay, level });
+  }
+
+  return data;
+}
+
+// Color scheme for contribution chart - progresses through fasting intensity
+const CONTRIBUTION_COLORS = {
+  0: 'transparent', // No fast
+  1: '#93c5fd', // Light blue - short fast (<8h)
+  2: '#60a5fa', // Blue - 8-12h
+  3: '#22c55e', // Green - 12-16h (hitting autophagy)
+  4: '#eab308', // Yellow/Gold - 16-20h (warrior territory)
+  5: '#f97316', // Orange - 20-24h (extended)
+  6: '#ef4444', // Red - 24h+ (beast mode)
+};
+
 // Popular fasting protocols
 const FASTING_PROTOCOLS = [
   {
@@ -386,6 +594,11 @@ export function Dashboard() {
   } | null>(null);
   const [showConfirmFasting, setShowConfirmFasting] = useState(false);
   const [showForgotFast, setShowForgotFast] = useState(false);
+  const [showStats, setShowStats] = useState(true);
+
+  // Gamification data - computed from pastFasts
+  const xpData = pastFasts.length > 0 ? calculateXP(pastFasts) : { totalXP: 0, level: XP_LEVELS[0], progress: 0, unlockedAchievements: [] };
+  const contributionData = pastFasts.length > 0 ? buildContributionData(pastFasts) : [];
 
   // Diary form
   const [diaryNote, setDiaryNote] = useState('');
@@ -1033,6 +1246,272 @@ export function Dashboard() {
 
       {/* Main Content */}
       <div className="mobile-padding" style={{ padding: '0 24px 24px', maxWidth: 1000, margin: '0 auto' }}>
+
+        {/* Gamification Stats Section */}
+        {pastFasts.length > 0 && (
+          <div style={{
+            background: colors.surface,
+            borderRadius: 20,
+            padding: 20,
+            marginBottom: 24,
+            border: `1px solid ${colors.border}`,
+          }}>
+            {/* Level & XP Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 16,
+              flexWrap: 'wrap',
+              gap: 12,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 14,
+                  background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontWeight: 800,
+                  fontSize: 20,
+                  boxShadow: '0 4px 15px rgba(139, 92, 246, 0.3)',
+                }}>
+                  {xpData.level.level}
+                </div>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: colors.text }}>
+                    {xpData.level.name}
+                  </div>
+                  <div style={{ fontSize: 13, color: colors.textSecondary }}>
+                    {xpData.totalXP.toLocaleString()} XP • {xpData.unlockedAchievements.length}/{ACHIEVEMENTS.length} Achievements
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowStats(!showStats)}
+                style={{
+                  padding: '8px 16px',
+                  background: colors.surfaceHover,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: 10,
+                  color: colors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Trophy size={16} />
+                {showStats ? 'Hide Stats' : 'Show Stats'}
+              </button>
+            </div>
+
+            {/* XP Progress Bar */}
+            <div style={{ marginBottom: showStats ? 20 : 0 }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: 11,
+                color: colors.textMuted,
+                marginBottom: 6,
+              }}>
+                <span>Level {xpData.level.level}</span>
+                <span>{xpData.level.maxXP === Infinity ? 'MAX LEVEL!' : `${Math.round(xpData.progress)}% to Level ${xpData.level.level + 1}`}</span>
+              </div>
+              <div style={{
+                height: 8,
+                background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+                borderRadius: 4,
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  width: `${xpData.progress}%`,
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #8b5cf6, #6366f1)',
+                  borderRadius: 4,
+                  transition: 'width 0.5s ease',
+                }} />
+              </div>
+            </div>
+
+            {showStats && (
+              <>
+                {/* Contribution Chart */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 12,
+                  }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>
+                      Fasting Activity
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: colors.textMuted }}>
+                      <span>&lt;8h</span>
+                      {[1, 2, 3, 4, 5, 6].map(level => (
+                        <div key={level} style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: 2,
+                          background: CONTRIBUTION_COLORS[level as keyof typeof CONTRIBUTION_COLORS],
+                          border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                        }} />
+                      ))}
+                      <span>24h+</span>
+                    </div>
+                  </div>
+
+                  {/* GitHub-style contribution grid - 60 days = ~9 weeks */}
+                  <div style={{
+                    display: 'flex',
+                    gap: 4,
+                    justifyContent: 'center',
+                    paddingBottom: 8,
+                  }}>
+                    {/* Group by weeks (9 columns for 60 days) */}
+                    {Array.from({ length: 9 }, (_, weekIndex) => {
+                      const weekData = contributionData.slice(weekIndex * 7, (weekIndex + 1) * 7);
+                      return (
+                        <div key={weekIndex} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {weekData.map((day, dayIndex) => (
+                            <div
+                              key={dayIndex}
+                              title={`${format(day.date, 'MMM d, yyyy')}: ${day.hours > 0 ? `${day.hours.toFixed(1)}h fasted` : 'No fasting'}`}
+                              style={{
+                                width: 14,
+                                height: 14,
+                                borderRadius: 3,
+                                background: day.level === 0
+                                  ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)')
+                                  : CONTRIBUTION_COLORS[day.level as keyof typeof CONTRIBUTION_COLORS],
+                                border: day.level === 0
+                                  ? `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.08)'}`
+                                  : `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                                cursor: 'default',
+                              }}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Quick Stats */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+                  gap: 12,
+                  marginBottom: 20,
+                }}>
+                  {[
+                    { label: 'Total Fasts', value: pastFasts.filter(f => f.completed).length, icon: '🎯' },
+                    { label: 'Total Hours', value: Math.round(pastFasts.reduce((acc, f) => {
+                      if (f.end_time) return acc + (new Date(f.end_time).getTime() - new Date(f.start_time).getTime()) / (1000 * 60 * 60);
+                      return acc;
+                    }, 0)), icon: '⏱️' },
+                    { label: 'Longest Fast', value: Math.round(Math.max(...pastFasts.map(f => {
+                      if (f.end_time) return (new Date(f.end_time).getTime() - new Date(f.start_time).getTime()) / (1000 * 60 * 60);
+                      return 0;
+                    }))) + 'h', icon: '🏆' },
+                    { label: 'This Month', value: pastFasts.filter(f => {
+                      const now = new Date();
+                      const start = new Date(f.start_time);
+                      return start.getMonth() === now.getMonth() && start.getFullYear() === now.getFullYear();
+                    }).length, icon: '📅' },
+                  ].map((stat, i) => (
+                    <div key={i} style={{
+                      background: colors.surfaceHover,
+                      borderRadius: 12,
+                      padding: 14,
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: 20, marginBottom: 4 }}>{stat.icon}</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: colors.text }}>{stat.value}</div>
+                      <div style={{ fontSize: 11, color: colors.textMuted }}>{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Recent Achievements */}
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: colors.text, marginBottom: 12 }}>
+                    Achievements ({xpData.unlockedAchievements.length}/{ACHIEVEMENTS.length})
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    gap: 8,
+                    overflowX: 'auto',
+                    paddingBottom: 8,
+                  }}>
+                    {ACHIEVEMENTS.slice(0, 10).map(achievement => {
+                      const unlocked = xpData.unlockedAchievements.includes(achievement.id);
+                      return (
+                        <div
+                          key={achievement.id}
+                          title={`${achievement.name}: ${achievement.desc} (${achievement.points} XP)`}
+                          style={{
+                            flexShrink: 0,
+                            width: 70,
+                            padding: '12px 8px',
+                            background: unlocked ? (isDark ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.1)') : colors.surfaceHover,
+                            borderRadius: 12,
+                            textAlign: 'center',
+                            border: unlocked ? '2px solid #8b5cf6' : `1px solid ${colors.border}`,
+                            opacity: unlocked ? 1 : 0.5,
+                          }}
+                        >
+                          <div style={{ fontSize: 24, marginBottom: 4, filter: unlocked ? 'none' : 'grayscale(1)' }}>
+                            {achievement.icon}
+                          </div>
+                          <div style={{
+                            fontSize: 9,
+                            fontWeight: 600,
+                            color: unlocked ? '#8b5cf6' : colors.textMuted,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {achievement.name}
+                          </div>
+                          <div style={{ fontSize: 8, color: colors.textMuted, marginTop: 2 }}>
+                            +{achievement.points} XP
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {ACHIEVEMENTS.length > 10 && (
+                      <div style={{
+                        flexShrink: 0,
+                        width: 70,
+                        padding: '12px 8px',
+                        background: colors.surfaceHover,
+                        borderRadius: 12,
+                        textAlign: 'center',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: colors.textMuted,
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }}>
+                        +{ACHIEVEMENTS.length - 10} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Hero section - centered Fast! with timer */}
         <div style={{
           borderRadius: 20,
