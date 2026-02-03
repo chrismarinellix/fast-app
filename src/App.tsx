@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
 import { Blog } from './pages/Blog';
@@ -15,8 +16,9 @@ import Test from './pages/Test';
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <Routes>
+      <ThemeProvider>
+        <AuthProvider>
+          <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/blog" element={<Blog />} />
@@ -32,8 +34,9 @@ function App() {
           <Route path="/share/:token" element={<ShareView />} />
           <Route path="/group/:inviteCode" element={<GroupView />} />
           <Route path="/connect/:inviteCode" element={<ConnectView />} />
-        </Routes>
-      </AuthProvider>
+          </Routes>
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

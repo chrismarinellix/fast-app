@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme, themeColors } from '../contexts/ThemeContext';
 import {
   Users, DollarSign, TrendingUp, Clock,
   CheckCircle2, UserPlus, Flame, ArrowLeft,
-  RefreshCw, Activity, Zap, Brain, Heart, Sparkles, Timer, Network
+  RefreshCw, Activity, Zap, Brain, Heart, Sparkles, Timer, Network,
+  Sun, Moon
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -97,6 +99,23 @@ interface NetworkData {
   edges: NetworkEdge[];
 }
 
+interface RecentMessage {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userName?: string;
+  title: string;
+  message: string;
+  type: string;
+  read: boolean;
+  createdAt: string;
+}
+
+interface UserMessageStats {
+  count: number;
+  lastMessage: string;
+}
+
 interface UserDetailData {
   profile: {
     id: string;
@@ -163,6 +182,8 @@ const ADMIN_EMAILS = ['chrismarinelli@live.com'];
 export function Admin() {
   const navigate = useNavigate();
   const { user, session, loading: authLoading } = useAuth();
+  const { theme, toggleTheme, isDark } = useTheme();
+  const colors = themeColors[theme];
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<UserData[]>([]);
   const [activeFasts, setActiveFasts] = useState<ActiveFast[]>([]);
@@ -173,8 +194,9 @@ export function Admin() {
   const [grantMessage, setGrantMessage] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
   const [showLiveFasts, setShowLiveFasts] = useState(false);
-  const [showNetwork, setShowNetwork] = useState(false);
   const [networkData, setNetworkData] = useState<NetworkData | null>(null);
+  const [recentMessages, setRecentMessages] = useState<RecentMessage[]>([]);
+  const [messagesByUser, setMessagesByUser] = useState<Record<string, UserMessageStats>>({});
   const [now, setNow] = useState(Date.now());
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
@@ -387,6 +409,8 @@ export function Admin() {
       setUsers(data.users || []);
       setActiveFasts(data.activeFasts || []);
       setNetworkData(data.network || null);
+      setRecentMessages(data.recentMessages || []);
+      setMessagesByUser(data.messagesByUser || {});
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -428,12 +452,12 @@ export function Admin() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #f8fafc 0%, #e0f2fe 100%)' }}>
+    <div style={{ minHeight: '100vh', background: isDark ? colors.background : 'linear-gradient(180deg, #f8fafc 0%, #e0f2fe 100%)' }}>
       {/* Header */}
       <header style={{
         padding: '16px 24px',
-        background: '#fff',
-        borderBottom: '1px solid #e5e7eb',
+        background: colors.surface,
+        borderBottom: `1px solid ${colors.border}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -445,7 +469,7 @@ export function Admin() {
             style={{
               background: 'none',
               border: 'none',
-              color: '#666',
+              color: colors.textSecondary,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -456,27 +480,47 @@ export function Admin() {
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Flame size={28} color="#22c55e" />
-            <span style={{ fontSize: 20, fontWeight: 800, color: '#333' }}>Fast! Admin</span>
+            <span style={{ fontSize: 20, fontWeight: 800, color: colors.text }}>Fast! Admin</span>
           </div>
         </div>
-        <button
-          onClick={fetchAdminData}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '8px 16px',
-            background: '#22c55e',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            cursor: 'pointer',
-            fontWeight: 600,
-          }}
-        >
-          <RefreshCw size={16} />
-          Refresh
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={toggleTheme}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 40,
+              height: 40,
+              background: isDark ? '#333' : '#f3f4f6',
+              color: isDark ? '#fbbf24' : '#6b7280',
+              border: 'none',
+              borderRadius: 10,
+              cursor: 'pointer',
+            }}
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {isDark ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+          <button
+            onClick={fetchAdminData}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 16px',
+              background: '#22c55e',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            <RefreshCw size={16} />
+            Refresh
+          </button>
+        </div>
       </header>
 
       <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
@@ -554,185 +598,134 @@ export function Admin() {
           />
           <StatCard
             icon={<Network size={24} />}
-            label="Network"
+            label="Connections"
             value={networkData?.edges.length || 0}
             color="#8b5cf6"
-            onClick={() => setShowNetwork(!showNetwork)}
-            clickable
-            active={showNetwork}
           />
         </div>
 
-        {/* Live Fasts Section */}
+        {/* Network Visualization - Always Visible */}
+        {networkData && (
+          <NetworkVisualization
+            networkData={networkData}
+            canvasRef={canvasRef}
+            animationRef={animationRef}
+            nodesRef={nodesRef}
+          />
+        )}
+
+        {/* Live Fasts Section - Compact View */}
         {showLiveFasts && (
           <div style={{
-            background: '#fff',
+            background: colors.surface,
             borderRadius: 16,
-            padding: 20,
-            border: '1px solid #e5e7eb',
+            padding: 16,
+            border: `1px solid ${colors.border}`,
             marginBottom: 24,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.05)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
           }}>
             <h3 style={{
-              margin: '0 0 16px 0',
-              fontSize: 18,
+              margin: '0 0 12px 0',
+              fontSize: 16,
               fontWeight: 700,
-              color: '#333',
+              color: colors.text,
               display: 'flex',
               alignItems: 'center',
               gap: 8,
             }}>
-              <Timer size={20} color="#ef4444" />
+              <Timer size={18} color="#ef4444" />
               Live Fasts ({activeFasts.length})
             </h3>
 
             {activeFasts.length === 0 ? (
               <div style={{
                 textAlign: 'center',
-                padding: 40,
-                color: '#888',
-                background: '#f9fafb',
-                borderRadius: 12,
+                padding: 20,
+                color: colors.textMuted,
+                background: colors.surfaceHover,
+                borderRadius: 8,
+                fontSize: 13,
               }}>
-                No active fasts right now
+                No active fasts
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {activeFasts.map(fast => {
                   const startTime = new Date(fast.startTime).getTime();
                   const durationMs = now - startTime;
                   const totalHours = durationMs / (1000 * 60 * 60);
                   const hours = Math.floor(totalHours);
                   const minutes = Math.floor((totalHours - hours) * 60);
-                  const seconds = Math.floor((totalHours * 3600 - hours * 3600 - minutes * 60));
                   const milestone = getMilestoneForHours(totalHours);
                   const progress = Math.min(100, (totalHours / fast.targetHours) * 100);
-                  const nextMilestone = FASTING_MILESTONES.find(m => m.hour > totalHours);
 
                   return (
                     <div
                       key={fast.id}
                       style={{
-                        background: '#fff',
-                        borderRadius: 16,
-                        padding: 20,
-                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-                        border: '1px solid #e5e7eb',
-                        borderLeft: `4px solid ${milestone.color}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: '8px 12px',
+                        background: colors.surfaceHover,
+                        borderRadius: 8,
+                        borderLeft: `3px solid ${milestone.color}`,
                       }}
                     >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: colors.text,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {fast.name || fast.email.split('@')[0]}
+                        </div>
+                      </div>
                       <div style={{
                         display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        marginBottom: 12,
+                        alignItems: 'center',
+                        gap: 4,
+                        color: milestone.color,
+                        fontSize: 12,
+                        fontWeight: 600,
                       }}>
-                        <div>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: '#333' }}>
-                            {fast.name || fast.email}
-                          </div>
-                          {fast.name && (
-                            <div style={{ fontSize: 12, color: '#888' }}>{fast.email}</div>
-                          )}
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            marginTop: 4,
-                            color: milestone.color,
-                            fontSize: 13,
-                            fontWeight: 600,
-                          }}>
-                            <MilestoneIcon icon={milestone.icon} size={14} />
-                            {milestone.title}
-                          </div>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '4px 10px',
-                          background: 'rgba(34, 197, 94, 0.1)',
-                          borderRadius: 12,
-                          color: '#16a34a',
-                          fontSize: 11,
-                          fontWeight: 600,
-                        }}>
-                          <RefreshCw size={10} style={{ animation: 'spin 2s linear infinite' }} />
-                          LIVE
-                        </div>
+                        <MilestoneIcon icon={milestone.icon} size={12} />
+                        <span style={{ display: 'none' }}>{milestone.title}</span>
                       </div>
                       <div style={{
-                        fontSize: 'clamp(24px, 6vw, 32px)',
-                        fontWeight: 800,
+                        fontWeight: 700,
                         color: milestone.color,
                         fontVariantNumeric: 'tabular-nums',
+                        fontSize: 14,
+                        minWidth: 55,
+                        textAlign: 'right',
                       }}>
-                        {hours}:{minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
+                        {hours}:{minutes.toString().padStart(2, '0')}
                       </div>
-                      <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-                        Started {format(new Date(fast.startTime), 'h:mm a')}
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div style={{ marginTop: 16 }}>
+                      <div style={{
+                        width: 60,
+                        height: 6,
+                        background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+                        borderRadius: 3,
+                        overflow: 'hidden',
+                      }}>
                         <div style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: 6,
-                        }}>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: milestone.color }}>
-                            {Math.round(progress)}% Complete
-                          </span>
-                          <span style={{ fontSize: 11, color: '#888' }}>
-                            Goal: {fast.targetHours}h
-                          </span>
-                        </div>
-                        <div style={{ position: 'relative' }}>
-                          {/* Track */}
-                          <div style={{
-                            width: '100%',
-                            height: 8,
-                            background: 'rgba(0,0,0,0.08)',
-                            borderRadius: 4,
-                          }}>
-                            {/* Fill */}
-                            <div style={{
-                              width: `${progress}%`,
-                              height: '100%',
-                              background: progress >= 100
-                                ? '#22c55e'
-                                : `linear-gradient(90deg, ${milestone.color}, ${nextMilestone?.color || '#22c55e'})`,
-                              borderRadius: 4,
-                              transition: 'width 1s linear',
-                            }} />
-                          </div>
-                          {/* Milestone dots */}
-                          {FASTING_MILESTONES.filter(m => m.hour > 0 && m.hour <= fast.targetHours).map(m => {
-                            const isPassed = totalHours >= m.hour;
-                            return (
-                              <div
-                                key={m.hour}
-                                style={{
-                                  position: 'absolute',
-                                  left: `${(m.hour / fast.targetHours) * 100}%`,
-                                  top: '50%',
-                                  transform: 'translate(-50%, -50%)',
-                                }}
-                              >
-                                <div style={{
-                                  width: 10,
-                                  height: 10,
-                                  borderRadius: '50%',
-                                  background: isPassed ? m.color : '#e5e5e5',
-                                  border: '2px solid #fff',
-                                  boxShadow: isPassed ? `0 1px 4px ${m.color}40` : '0 1px 2px rgba(0,0,0,0.1)',
-                                }} />
-                              </div>
-                            );
-                          })}
-                        </div>
+                          width: `${progress}%`,
+                          height: '100%',
+                          background: milestone.color,
+                          borderRadius: 3,
+                        }} />
+                      </div>
+                      <div style={{
+                        fontSize: 11,
+                        color: colors.textMuted,
+                        minWidth: 35,
+                        textAlign: 'right',
+                      }}>
+                        {fast.targetHours}h
                       </div>
                     </div>
                   );
@@ -740,16 +733,6 @@ export function Admin() {
               </div>
             )}
           </div>
-        )}
-
-        {/* Network Visualization Section */}
-        {showNetwork && networkData && (
-          <NetworkVisualization
-            networkData={networkData}
-            canvasRef={canvasRef}
-            animationRef={animationRef}
-            nodesRef={nodesRef}
-          />
         )}
 
         {/* Grant Access Form */}
@@ -863,13 +846,14 @@ export function Admin() {
                   <th style={thStyle}>Paid Until</th>
                   <th style={thStyle}>Fasts</th>
                   <th style={thStyle}>Joined</th>
+                  <th style={thStyle}>Msgs</th>
                   <th style={thStyle}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: '#888' }}>
+                    <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', color: '#888' }}>
                       No users found
                     </td>
                   </tr>
@@ -923,6 +907,27 @@ export function Admin() {
                           {format(new Date(u.createdAt), 'MMM d, yyyy')}
                         </span>
                       </td>
+                      <td style={tdStyle}>
+                        {messagesByUser[u.id] ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{
+                              padding: '2px 6px',
+                              background: '#e0e7ff',
+                              color: '#4f46e5',
+                              borderRadius: 4,
+                              fontSize: 11,
+                              fontWeight: 600,
+                            }}>
+                              {messagesByUser[u.id].count}
+                            </span>
+                            <span style={{ color: '#888', fontSize: 10 }}>
+                              {format(new Date(messagesByUser[u.id].lastMessage), 'M/d')}
+                            </span>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#ccc', fontSize: 11 }}>-</span>
+                        )}
+                      </td>
                       <td style={tdStyle} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button
@@ -964,6 +969,345 @@ export function Admin() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* Recent Messages History */}
+        <div style={{
+          marginTop: 24,
+          background: colors.surface,
+          borderRadius: 16,
+          padding: 20,
+          border: `1px solid ${colors.border}`,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        }}>
+          <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700, color: colors.text, display: 'flex', alignItems: 'center', gap: 8 }}>
+            📬 Message History
+            <span style={{ fontSize: 12, fontWeight: 500, color: colors.textMuted }}>
+              ({recentMessages.length} recent)
+            </span>
+          </h2>
+          {recentMessages.length === 0 ? (
+            <div style={{
+              textAlign: 'center',
+              padding: 30,
+              color: colors.textMuted,
+              background: colors.surfaceHover,
+              borderRadius: 12,
+            }}>
+              No messages sent yet
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+              {recentMessages.slice(0, 20).map(msg => (
+                <div
+                  key={msg.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 12,
+                    padding: '10px 12px',
+                    background: colors.surfaceHover,
+                    borderRadius: 10,
+                    borderLeft: `3px solid ${
+                      msg.type === 'admin' ? '#8b5cf6' :
+                      msg.type === 'milestone' ? '#22c55e' :
+                      msg.type === 'reminder' ? '#f97316' : '#6b7280'
+                    }`,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{
+                        padding: '2px 6px',
+                        background: msg.type === 'admin' ? '#8b5cf620' :
+                                   msg.type === 'milestone' ? '#22c55e20' :
+                                   msg.type === 'reminder' ? '#f9731620' : '#6b728020',
+                        color: msg.type === 'admin' ? '#8b5cf6' :
+                               msg.type === 'milestone' ? '#22c55e' :
+                               msg.type === 'reminder' ? '#f97316' : '#6b7280',
+                        borderRadius: 4,
+                        fontSize: 10,
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                      }}>
+                        {msg.type}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: colors.text }}>
+                        {msg.title}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {msg.message.substring(0, 80)}{msg.message.length > 80 ? '...' : ''}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: colors.textMuted }}>
+                      <span>To: {msg.userName || msg.userEmail.split('@')[0]}</span>
+                      <span>•</span>
+                      <span>{format(new Date(msg.createdAt), 'MMM d, h:mm a')}</span>
+                      {msg.read && (
+                        <>
+                          <span>•</span>
+                          <span style={{ color: '#22c55e' }}>Read</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Scheduled/Automated Messages Preview */}
+        <div style={{
+          marginTop: 24,
+          background: colors.surface,
+          borderRadius: 16,
+          padding: 20,
+          border: `1px solid ${colors.border}`,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        }}>
+          <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700, color: colors.text, display: 'flex', alignItems: 'center', gap: 8 }}>
+            🤖 Automated Messages
+            <span style={{ fontSize: 12, fontWeight: 500, color: colors.textMuted }}>
+              (Runs every 4 hours)
+            </span>
+          </h2>
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+            {[
+              { trigger: '24h milestone', icon: '🎉', desc: '24, 36, 48, 72 hour achievements', color: '#22c55e' },
+              { trigger: 'Extended fast check-in', icon: '💪', desc: 'Every 8h after 24h fast', color: '#f97316' },
+              { trigger: 'Inactive user reminder', icon: '👋', desc: 'No fast in 7+ days', color: '#8b5cf6' },
+            ].map(auto => (
+              <div key={auto.trigger} style={{
+                padding: 16,
+                background: colors.surfaceHover,
+                borderRadius: 12,
+                borderLeft: `3px solid ${auto.color}`,
+              }}>
+                <div style={{ fontSize: 20, marginBottom: 8 }}>{auto.icon}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: colors.text, marginBottom: 4 }}>
+                  {auto.trigger}
+                </div>
+                <div style={{ fontSize: 12, color: colors.textSecondary }}>
+                  {auto.desc}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Message Templates */}
+        <div style={{
+          marginTop: 24,
+          background: colors.surface,
+          borderRadius: 16,
+          padding: 24,
+          border: `1px solid ${colors.border}`,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        }}>
+          <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: colors.text, display: 'flex', alignItems: 'center', gap: 8 }}>
+            💬 Quick Message Templates
+          </h2>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {[
+              {
+                title: "Welcome! 👋",
+                message: "Welcome to Fast! We're excited to have you on your fasting journey. Start your first fast whenever you're ready - even a 12-16 hour fast can kickstart amazing health benefits!",
+                type: 'admin' as const,
+                audience: 'New users (0 fasts)',
+                color: '#22c55e',
+              },
+              {
+                title: "You're doing amazing! 🔥",
+                message: "Just wanted to check in - your fasting consistency is impressive! Keep it up. Remember, every fast is building better metabolic health, improving insulin sensitivity, and supporting cellular repair.",
+                type: 'admin' as const,
+                audience: 'Active users (3+ fasts)',
+                color: '#f97316',
+              },
+              {
+                title: "We miss you! 💪",
+                message: "It's been a while since your last fast. Ready to get back on track? Even a short 16-hour fast can reignite your metabolism and boost your energy. Your body remembers the benefits!",
+                type: 'reminder' as const,
+                audience: 'Inactive users (7+ days)',
+                color: '#8b5cf6',
+              },
+              {
+                title: "Milestone Celebration! 🎉",
+                message: "Congratulations on reaching this fasting milestone! Your dedication is paying off. At this stage, your body is experiencing deep autophagy, enhanced growth hormone, and powerful cellular renewal.",
+                type: 'admin' as const,
+                audience: '24h+ fasters',
+                color: '#eab308',
+              },
+              {
+                title: "Stay hydrated! 💧",
+                message: "Friendly reminder: hydration is key during your fast! Water, black coffee, and plain tea are your friends. Keep going strong - you've got this!",
+                type: 'reminder' as const,
+                audience: 'Currently fasting',
+                color: '#3b82f6',
+              },
+              {
+                title: "Thank you! ❤️",
+                message: "Thank you for being part of the Fast! community. Your commitment to health is inspiring. We're constantly improving the app based on feedback from users like you!",
+                type: 'admin' as const,
+                audience: 'Paid subscribers',
+                color: '#ec4899',
+              },
+            ].map((template, i) => (
+              <div
+                key={i}
+                style={{
+                  background: '#f9fafb',
+                  borderRadius: 12,
+                  padding: 16,
+                  borderLeft: `4px solid ${template.color}`,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 16,
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: '#333', marginBottom: 4 }}>{template.title}</div>
+                  <div style={{ fontSize: 13, color: '#666', marginBottom: 8, lineHeight: 1.5 }}>{template.message}</div>
+                  <div style={{ fontSize: 11, color: template.color, fontWeight: 600 }}>
+                    Audience: {template.audience}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    // Filter users based on audience
+                    let targetUsers: string[] = [];
+                    if (template.audience.includes('New users')) {
+                      targetUsers = users.filter(u => u.fastsCompleted === 0).map(u => u.id);
+                    } else if (template.audience.includes('Active users')) {
+                      targetUsers = users.filter(u => u.fastsCompleted >= 3).map(u => u.id);
+                    } else if (template.audience.includes('Inactive')) {
+                      targetUsers = users.filter(u => !activeFasts.some(f => f.userId === u.id)).map(u => u.id);
+                    } else if (template.audience.includes('24h+')) {
+                      targetUsers = activeFasts.filter(f => {
+                        const hours = (Date.now() - new Date(f.startTime).getTime()) / (1000 * 60 * 60);
+                        return hours >= 24;
+                      }).map(f => f.userId);
+                    } else if (template.audience.includes('Currently fasting')) {
+                      targetUsers = activeFasts.map(f => f.userId);
+                    } else if (template.audience.includes('Paid')) {
+                      targetUsers = users.filter(u => u.paidUntil && new Date(u.paidUntil) > new Date()).map(u => u.id);
+                    } else {
+                      targetUsers = users.map(u => u.id);
+                    }
+
+                    if (targetUsers.length === 0) {
+                      alert('No users match this audience criteria');
+                      return;
+                    }
+
+                    setNotificationTargets(targetUsers);
+                    setNotificationTitle(template.title);
+                    setNotificationMessage(template.message);
+                    setNotificationType(template.type);
+                    setShowNotificationModal(true);
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    background: template.color,
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 10,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Send
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Automated Messages Preview */}
+        <div style={{
+          marginTop: 24,
+          background: '#fff',
+          borderRadius: 16,
+          padding: 24,
+          border: '1px solid #e5e7eb',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: '#333', display: 'flex', alignItems: 'center', gap: 8 }}>
+            🤖 Automated Messages
+            <span style={{ fontSize: 12, fontWeight: 400, color: '#888' }}>(runs every 4 hours)</span>
+          </h2>
+          <p style={{ margin: '0 0 20px', fontSize: 13, color: '#666' }}>
+            These messages are sent automatically based on user activity. No action needed from you.
+          </p>
+
+          <div style={{ display: 'grid', gap: 16 }}>
+            {/* Milestone Messages */}
+            <div style={{ background: '#fef9c3', borderRadius: 12, padding: 16 }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700, color: '#ca8a04', display: 'flex', alignItems: 'center', gap: 6 }}>
+                🎉 Milestone Celebrations
+              </h3>
+              <div style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
+                Sent when users hit 24h, 36h, 48h, and 72h fasts
+              </div>
+              {activeFasts.filter(f => {
+                const hours = (Date.now() - new Date(f.startTime).getTime()) / (1000 * 60 * 60);
+                return hours >= 20 && hours < 24;
+              }).length > 0 ? (
+                <div style={{ fontSize: 12, color: '#ca8a04', fontWeight: 600 }}>
+                  ⏰ {activeFasts.filter(f => {
+                    const hours = (Date.now() - new Date(f.startTime).getTime()) / (1000 * 60 * 60);
+                    return hours >= 20 && hours < 24;
+                  }).length} user(s) approaching 24h milestone soon
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: '#888' }}>No upcoming milestones</div>
+              )}
+            </div>
+
+            {/* Check-in Messages */}
+            <div style={{ background: '#dbeafe', borderRadius: 12, padding: 16 }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700, color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                💪 Extended Fast Check-ins
+              </h3>
+              <div style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
+                Sent every 8 hours for fasts over 24 hours - "How are you feeling?"
+              </div>
+              {activeFasts.filter(f => {
+                const hours = (Date.now() - new Date(f.startTime).getTime()) / (1000 * 60 * 60);
+                return hours >= 24;
+              }).length > 0 ? (
+                <div style={{ fontSize: 12, color: '#1d4ed8', fontWeight: 600 }}>
+                  📬 {activeFasts.filter(f => {
+                    const hours = (Date.now() - new Date(f.startTime).getTime()) / (1000 * 60 * 60);
+                    return hours >= 24;
+                  }).map(f => f.name || f.email.split('@')[0]).join(', ')} will receive check-ins
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: '#888' }}>No extended fasts currently</div>
+              )}
+            </div>
+
+            {/* Re-engagement Messages */}
+            <div style={{ background: '#f3e8ff', borderRadius: 12, padding: 16 }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 6 }}>
+                👋 Re-engagement
+              </h3>
+              <div style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
+                Sent to users who haven't fasted in 7+ days - "We miss you!"
+              </div>
+              <div style={{ fontSize: 12, color: '#888' }}>
+                Checked automatically - inactive users get gentle reminders
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 16, padding: 12, background: '#f0fdf4', borderRadius: 10, border: '1px solid #bbf7d0' }}>
+            <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>
+              ✅ All automated messages also send emails (when RESEND_API_KEY is configured)
+            </div>
           </div>
         </div>
 

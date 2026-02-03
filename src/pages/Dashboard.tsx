@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import {
   Play, RotateCcw, CheckCircle2, PenLine, Flame, Brain, Zap,
   Heart, Sparkles, Clock, History, Share2, Edit3,
-  LogOut, TrendingUp, Award, Target, Plus, Timer, Settings,
-  Trash2, Link, Eye, Copy, X, Check, MessageSquare, Users, Bell
+  LogOut, TrendingUp, Award, Target, Plus, Settings,
+  Trash2, Link, Eye, Copy, X, Check, MessageSquare, Users, Bell,
+  Sun, Moon
 } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme, themeColors } from '../contexts/ThemeContext';
 import {
   getCurrentFast, startFast, endFast, getFastingHistory,
   getFastingNotes, addFastingNote, canStartFast, updateUserProfile,
@@ -346,6 +348,8 @@ function MilestoneIcon({ icon, size = 20 }: { icon: string; size?: number }) {
 export function Dashboard() {
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
+  const { theme, toggleTheme, isDark } = useTheme();
+  const colors = themeColors[theme];
 
   const [currentFast, setCurrentFast] = useState<FastingSession | null>(null);
   const [notes, setNotes] = useState<FastingNote[]>([]);
@@ -371,7 +375,6 @@ export function Dashboard() {
   const [userConnections, setUserConnections] = useState<ConnectionWithFast[]>([]);
   const [pendingInvites, setPendingInvites] = useState<ShareConnection[]>([]);
   const [connectedFasts, setConnectedFasts] = useState<ConnectedFast[]>([]);
-  const [hoveredConnectedMilestone, setHoveredConnectedMilestone] = useState<{ fastId: string; hour: number } | null>(null);
   const [showProtocolSelect, setShowProtocolSelect] = useState(false);
   const [adjustHours, setAdjustHours] = useState(0);
   const [showCompletionSummary, setShowCompletionSummary] = useState(false);
@@ -780,19 +783,20 @@ export function Dashboard() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fafafa' }}>
+    <div style={{ minHeight: '100vh', background: colors.background, color: colors.text, transition: 'background 0.3s, color 0.3s' }}>
       {/* Header */}
       <header style={{
         padding: '16px 24px',
-        background: '#fff',
-        borderBottom: '1px solid #e5e5e5',
+        background: colors.surface,
+        borderBottom: `1px solid ${colors.border}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        transition: 'background 0.3s, border-color 0.3s',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Flame size={28} color="#22c55e" />
-          <span style={{ fontSize: 20, fontWeight: 700 }}>Fast!</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: colors.text }}>Fast!</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -815,6 +819,26 @@ export function Dashboard() {
             </div>
           )}
 
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 40,
+              height: 40,
+              background: isDark ? '#333' : '#f3f4f6',
+              color: isDark ? '#fbbf24' : '#6b7280',
+              border: 'none',
+              borderRadius: 8,
+              cursor: 'pointer',
+            }}
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {isDark ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+
           {/* Notification bell */}
           <div style={{ position: 'relative' }}>
             <button
@@ -825,9 +849,9 @@ export function Dashboard() {
                 justifyContent: 'center',
                 width: 40,
                 height: 40,
-                background: showNotifications ? '#f5f3ff' : 'transparent',
-                color: showNotifications ? '#8b5cf6' : '#666',
-                border: showNotifications ? '1px solid #8b5cf6' : '1px solid #e5e5e5',
+                background: showNotifications ? '#f5f3ff' : (isDark ? colors.surfaceHover : 'transparent'),
+                color: showNotifications ? '#8b5cf6' : colors.textSecondary,
+                border: showNotifications ? '1px solid #8b5cf6' : `1px solid ${colors.border}`,
                 borderRadius: 8,
                 cursor: 'pointer',
                 position: 'relative',
@@ -864,21 +888,21 @@ export function Dashboard() {
                 marginTop: 8,
                 width: 340,
                 maxHeight: 400,
-                background: '#fff',
+                background: colors.surface,
                 borderRadius: 16,
-                boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
-                border: '1px solid #e5e5e5',
+                boxShadow: isDark ? '0 10px 40px rgba(0,0,0,0.4)' : '0 10px 40px rgba(0,0,0,0.15)',
+                border: `1px solid ${colors.border}`,
                 overflow: 'hidden',
                 zIndex: 100,
               }}>
                 <div style={{
                   padding: '16px 20px',
-                  borderBottom: '1px solid #e5e5e5',
+                  borderBottom: `1px solid ${colors.border}`,
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                 }}>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#333' }}>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: colors.text }}>
                     Notifications
                   </h3>
                   {unreadCount > 0 && (
@@ -1016,11 +1040,16 @@ export function Dashboard() {
           marginBottom: 24,
           position: 'relative',
           overflow: 'hidden',
-          background: currentFast
-            ? `linear-gradient(-45deg, ${currentMilestone.color}15, ${nextMilestone?.color || '#22c55e'}10, #fff, ${currentMilestone.color}08)`
-            : 'linear-gradient(-45deg, #22c55e10, #3b82f608, #fff, #22c55e05)',
+          background: isDark
+            ? (currentFast
+              ? `linear-gradient(-45deg, ${currentMilestone.color}20, ${nextMilestone?.color || '#22c55e'}15, ${colors.surface}, ${currentMilestone.color}10)`
+              : `linear-gradient(-45deg, #22c55e15, #3b82f610, ${colors.surface}, #22c55e08)`)
+            : (currentFast
+              ? `linear-gradient(-45deg, ${currentMilestone.color}15, ${nextMilestone?.color || '#22c55e'}10, #fff, ${currentMilestone.color}08)`
+              : 'linear-gradient(-45deg, #22c55e10, #3b82f608, #fff, #22c55e05)'),
           backgroundSize: '400% 400%',
           animation: 'gradientShift 15s ease infinite',
+          transition: 'background 0.3s',
         }}>
           <style>{`
             @keyframes gradientShift {
@@ -1037,7 +1066,8 @@ export function Dashboard() {
             letterSpacing: '-0.03em',
             margin: 0,
             marginBottom: currentFast ? '16px' : '24px',
-            color: isComplete ? '#22c55e' : '#1a1a1a',
+            color: isComplete ? '#22c55e' : colors.text,
+            transition: 'color 0.3s',
           }}>
             Fast!
           </h1>
@@ -1064,7 +1094,7 @@ export function Dashboard() {
                   </div>
                   <div style={{
                     fontSize: 12,
-                    color: 'rgba(0,0,0,0.4)',
+                    color: colors.textMuted,
                     textTransform: 'uppercase',
                     letterSpacing: '0.1em',
                     marginTop: 6,
@@ -1073,7 +1103,7 @@ export function Dashboard() {
                   </div>
                 </div>
 
-                <div style={{ width: 2, height: 50, background: 'rgba(0,0,0,0.1)' }} />
+                <div style={{ width: 2, height: 50, background: colors.border }} />
 
                 <div style={{ textAlign: 'center' }}>
                   <div style={{
@@ -1468,228 +1498,238 @@ export function Dashboard() {
                 )}
               </div>
 
-              {/* Connected Friends Fasting Section - Only shows users with accepted share connections */}
-              {connectedFasts.length > 0 && (
+              {/* Connected Friends Fasting Section - Compact with Network */}
+              {(connectedFasts.length > 0 || userConnections.length > 0) && (
                 <div style={{
                   marginTop: 24,
                   background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
                   borderRadius: 16,
-                  padding: 20,
+                  padding: 16,
                 }}>
                   <h3 style={{
-                    margin: '0 0 16px 0',
-                    fontSize: 16,
+                    margin: '0 0 12px 0',
+                    fontSize: 15,
                     fontWeight: 700,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
                     color: '#333',
                   }}>
-                    <Users size={18} color="#8b5cf6" />
-                    Friends Fasting ({connectedFasts.length})
+                    <Users size={16} color="#8b5cf6" />
+                    Your Network
+                    <span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>
+                      ({userConnections.length} connection{userConnections.length !== 1 ? 's' : ''})
+                    </span>
                   </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {connectedFasts.map(fast => {
-                      const startTime = new Date(fast.start_time).getTime();
-                      const durationMs = now - startTime;
-                      const totalHrs = durationMs / (1000 * 60 * 60);
-                      const days = Math.floor(totalHrs / 24);
-                      const hrs = Math.floor(totalHrs % 24);
-                      const mins = Math.floor((totalHrs - Math.floor(totalHrs)) * 60);
-                      const secs = Math.floor((totalHrs * 3600) - (Math.floor(totalHrs) * 3600) - (mins * 60));
-                      const milestone = FASTING_MILESTONES.filter(m => m.hour <= totalHrs).pop() || FASTING_MILESTONES[0];
-                      const nextMilestone = FASTING_MILESTONES.find(m => m.hour > totalHrs);
-                      const prog = Math.min(100, (totalHrs / fast.target_hours) * 100);
-                      const isComplete = totalHrs >= fast.target_hours;
 
-                      return (
-                        <div
-                          key={fast.id}
-                          style={{
-                            background: '#fff',
-                            borderRadius: 16,
-                            padding: 20,
-                            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.06)',
-                            borderLeft: `4px solid ${milestone.color}`,
-                          }}
-                        >
-                          {/* Name and Live badge */}
-                          <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: 12,
-                          }}>
-                            <div style={{ fontSize: 18, fontWeight: 700, color: '#333' }}>
-                              {fast.user_name}
-                            </div>
+                  {/* Mini Network Visualization */}
+                  <div style={{
+                    background: '#fff',
+                    borderRadius: 12,
+                    padding: 12,
+                    marginBottom: connectedFasts.length > 0 ? 12 : 0,
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                    }}>
+                      {/* You node */}
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}>
+                        <div style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: '50%',
+                          background: currentFast ? 'linear-gradient(135deg, #22c55e, #16a34a)' : '#8b5cf6',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#fff',
+                          fontWeight: 700,
+                          fontSize: 14,
+                          boxShadow: currentFast ? '0 0 12px rgba(34, 197, 94, 0.5)' : '0 2px 8px rgba(139, 92, 246, 0.3)',
+                        }}>
+                          You
+                        </div>
+                        {currentFast && (
+                          <span style={{ fontSize: 9, color: '#16a34a', fontWeight: 600 }}>FASTING</span>
+                        )}
+                      </div>
+
+                      {/* Connection lines and friend nodes */}
+                      {userConnections.slice(0, 6).map((connection) => {
+                        const isFasting = connectedFasts.some(f => f.user_id === connection.connected_user_id);
+                        return (
+                          <div key={connection.connection_id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            {/* Line */}
+                            <div style={{
+                              width: 20,
+                              height: 2,
+                              background: isFasting ? '#22c55e' : '#e5e5e5',
+                            }} />
+                            {/* Friend node */}
                             <div style={{
                               display: 'flex',
+                              flexDirection: 'column',
                               alignItems: 'center',
                               gap: 4,
-                              padding: '4px 10px',
-                              background: 'rgba(34, 197, 94, 0.1)',
-                              borderRadius: 12,
-                              color: '#16a34a',
-                              fontSize: 11,
-                              fontWeight: 600,
                             }}>
-                              <Timer size={12} />
-                              LIVE
+                              <div style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: '50%',
+                                background: isFasting ? 'linear-gradient(135deg, #22c55e, #16a34a)' : '#f3f4f6',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: isFasting ? '#fff' : '#888',
+                                fontWeight: 600,
+                                fontSize: 11,
+                                border: isFasting ? 'none' : '2px solid #e5e5e5',
+                                boxShadow: isFasting ? '0 0 8px rgba(34, 197, 94, 0.4)' : 'none',
+                              }}>
+                                {(connection.display_name || 'U')[0].toUpperCase()}
+                              </div>
+                              <span style={{
+                                fontSize: 9,
+                                color: isFasting ? '#16a34a' : '#888',
+                                fontWeight: isFasting ? 600 : 400,
+                                maxWidth: 50,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}>
+                                {connection.display_name || 'Friend'}
+                              </span>
                             </div>
                           </div>
+                        );
+                      })}
+                      {userConnections.length > 6 && (
+                        <div style={{
+                          fontSize: 11,
+                          color: '#888',
+                          padding: '4px 8px',
+                          background: '#f3f4f6',
+                          borderRadius: 8,
+                        }}>
+                          +{userConnections.length - 6} more
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-                          {/* Milestone badge */}
-                          <div style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            padding: '6px 12px',
-                            background: `${milestone.color}15`,
-                            borderRadius: 20,
-                            color: milestone.color,
-                            fontSize: 13,
-                            fontWeight: 600,
-                            marginBottom: 12,
-                          }}>
-                            <MilestoneIcon icon={milestone.icon} size={16} />
-                            {milestone.title}
-                          </div>
+                  {/* Compact Friends Fasting List */}
+                  {connectedFasts.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {connectedFasts.map(fast => {
+                        const startTime = new Date(fast.start_time).getTime();
+                        const durationMs = now - startTime;
+                        const totalHrs = durationMs / (1000 * 60 * 60);
+                        const hrs = Math.floor(totalHrs);
+                        const mins = Math.floor((totalHrs - Math.floor(totalHrs)) * 60);
+                        const secs = Math.floor((totalHrs * 3600) - (Math.floor(totalHrs) * 3600) - (mins * 60));
+                        const milestone = FASTING_MILESTONES.filter(m => m.hour <= totalHrs).pop() || FASTING_MILESTONES[0];
+                        const prog = Math.min(100, (totalHrs / fast.target_hours) * 100);
 
-                          {/* Timer */}
-                          <div style={{
-                            fontSize: 24,
-                            fontWeight: 700,
-                            color: isComplete ? '#16a34a' : milestone.color,
-                            fontVariantNumeric: 'tabular-nums',
-                            marginBottom: 10,
-                          }}>
-                            {days > 0 && <span>{days}d </span>}
-                            {hrs}:{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
-                          </div>
-
-                          {/* Progress bar with milestone dots */}
-                          <div style={{ marginBottom: 8 }}>
-                            <div style={{
+                        return (
+                          <div
+                            key={fast.id}
+                            style={{
                               display: 'flex',
-                              justifyContent: 'space-between',
                               alignItems: 'center',
-                              marginBottom: 6,
+                              gap: 10,
+                              background: '#fff',
+                              borderRadius: 10,
+                              padding: '10px 12px',
+                              borderLeft: `3px solid ${milestone.color}`,
+                            }}
+                          >
+                            {/* Name */}
+                            <div style={{
+                              flex: '0 0 auto',
+                              minWidth: 70,
+                              maxWidth: 90,
                             }}>
-                              <span style={{
+                              <div style={{
                                 fontSize: 13,
                                 fontWeight: 600,
-                                color: isComplete ? '#16a34a' : milestone.color,
+                                color: '#333',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
                               }}>
-                                {Math.round(prog)}% Complete
-                              </span>
-                              <span style={{ fontSize: 12, color: '#888' }}>
-                                Goal: {fast.target_hours}h
-                              </span>
+                                {fast.user_name}
+                              </div>
                             </div>
-                            <div style={{ position: 'relative' }}>
-                              {/* Track */}
+
+                            {/* Milestone icon */}
+                            <div style={{ color: milestone.color }}>
+                              <MilestoneIcon icon={milestone.icon} size={14} />
+                            </div>
+
+                            {/* Timer */}
+                            <div style={{
+                              fontSize: 14,
+                              fontWeight: 700,
+                              color: milestone.color,
+                              fontVariantNumeric: 'tabular-nums',
+                              minWidth: 60,
+                            }}>
+                              {hrs}:{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
+                            </div>
+
+                            {/* Progress bar */}
+                            <div style={{ flex: 1, minWidth: 50 }}>
                               <div style={{
-                                width: '100%',
-                                height: 8,
-                                background: 'rgba(0,0,0,0.06)',
-                                borderRadius: 4,
+                                height: 6,
+                                background: 'rgba(0,0,0,0.08)',
+                                borderRadius: 3,
+                                overflow: 'hidden',
                               }}>
-                                {/* Fill */}
                                 <div style={{
                                   width: `${prog}%`,
                                   height: '100%',
-                                  background: isComplete ? '#22c55e' : `linear-gradient(90deg, ${milestone.color}, ${nextMilestone?.color || '#22c55e'})`,
-                                  borderRadius: 4,
+                                  background: milestone.color,
+                                  borderRadius: 3,
                                   transition: 'width 1s linear',
                                 }} />
                               </div>
-                              {/* Milestone dots */}
-                              {FASTING_MILESTONES.filter(m => m.hour > 0 && m.hour <= fast.target_hours).map(m => {
-                                const isPassed = totalHrs >= m.hour;
-                                const isCurrent = milestone.hour === m.hour;
-                                const isHovered = hoveredConnectedMilestone?.fastId === fast.id && hoveredConnectedMilestone?.hour === m.hour;
-                                return (
-                                  <div
-                                    key={m.hour}
-                                    onMouseEnter={() => setHoveredConnectedMilestone({ fastId: fast.id, hour: m.hour })}
-                                    onMouseLeave={() => setHoveredConnectedMilestone(null)}
-                                    style={{
-                                      position: 'absolute',
-                                      left: `${(m.hour / fast.target_hours) * 100}%`,
-                                      top: '50%',
-                                      transform: 'translate(-50%, -50%)',
-                                      cursor: 'pointer',
-                                      zIndex: isHovered ? 100 : 10,
-                                    }}
-                                  >
-                                    <div style={{
-                                      width: isCurrent ? 16 : isHovered ? 14 : 10,
-                                      height: isCurrent ? 16 : isHovered ? 14 : 10,
-                                      borderRadius: '50%',
-                                      background: isPassed ? m.color : '#e5e5e5',
-                                      border: isCurrent ? '3px solid #fff' : '2px solid #fff',
-                                      boxShadow: isPassed ? `0 2px 8px ${m.color}50` : '0 1px 3px rgba(0,0,0,0.1)',
-                                      transition: 'all 0.2s',
-                                    }} />
-                                    {/* Tooltip */}
-                                    {isHovered && (
-                                      <div style={{
-                                        position: 'absolute',
-                                        bottom: '100%',
-                                        left: '50%',
-                                        transform: 'translateX(-50%)',
-                                        marginBottom: 12,
-                                        padding: '12px 16px',
-                                        background: '#fff',
-                                        color: '#333',
-                                        borderRadius: 12,
-                                        fontSize: 13,
-                                        width: 220,
-                                        boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
-                                        border: '1px solid rgba(0,0,0,0.08)',
-                                        zIndex: 1000,
-                                      }}>
-                                        <div style={{
-                                          fontWeight: 700,
-                                          color: m.color,
-                                          marginBottom: 4,
-                                          fontSize: 11,
-                                          textTransform: 'uppercase',
-                                          letterSpacing: '0.05em',
-                                        }}>
-                                          Hour {m.hour} {isCurrent ? '• CURRENT' : isPassed ? '• ACHIEVED' : '• UPCOMING'}
-                                        </div>
-                                        <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 15, color: '#1a1a1a' }}>{m.title}</div>
-                                        <div style={{ fontSize: 12, color: '#555', lineHeight: 1.5 }}>{m.shortDesc}</div>
-                                        {/* Arrow */}
-                                        <div style={{
-                                          position: 'absolute',
-                                          bottom: -8,
-                                          left: '50%',
-                                          transform: 'translateX(-50%) rotate(45deg)',
-                                          width: 14,
-                                          height: 14,
-                                          background: '#fff',
-                                          borderRight: '1px solid rgba(0,0,0,0.08)',
-                                          borderBottom: '1px solid rgba(0,0,0,0.08)',
-                                        }} />
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                            </div>
+
+                            {/* Goal */}
+                            <div style={{
+                              fontSize: 11,
+                              color: '#888',
+                              minWidth: 30,
+                              textAlign: 'right',
+                            }}>
+                              {fast.target_hours}h
+                            </div>
+
+                            {/* Live badge */}
+                            <div style={{
+                              padding: '2px 6px',
+                              background: 'rgba(34, 197, 94, 0.15)',
+                              borderRadius: 6,
+                              color: '#16a34a',
+                              fontSize: 9,
+                              fontWeight: 700,
+                            }}>
+                              LIVE
                             </div>
                           </div>
-
-                          {/* Started time */}
-                          <div style={{ fontSize: 12, color: '#888' }}>
-                            Started {format(new Date(fast.start_time), 'h:mm a')}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -124,6 +124,46 @@ export async function handler(event: any) {
       createdAt: c.accepted_at,
     })) || [];
 
+    // Get recent admin/system notifications
+    let recentMessages: any[] = [];
+    let messagesByUser: Record<string, { count: number; lastMessage: string }> = {};
+    try {
+      const { data: notifications } = await supabase
+        .from('notifications')
+        .select('*')
+        .in('type', ['admin', 'system', 'reminder', 'milestone'])
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (notifications) {
+        recentMessages = notifications.map(n => ({
+          id: n.id,
+          userId: n.user_id,
+          userEmail: profiles?.find(p => p.id === n.user_id)?.email || 'Unknown',
+          userName: profiles?.find(p => p.id === n.user_id)?.name,
+          title: n.title,
+          message: n.message,
+          type: n.type,
+          read: n.read,
+          createdAt: n.created_at,
+        }));
+
+        // Build per-user message stats
+        for (const n of notifications) {
+          const userId = n.user_id;
+          if (!messagesByUser[userId]) {
+            messagesByUser[userId] = { count: 0, lastMessage: n.created_at };
+          }
+          messagesByUser[userId].count++;
+          if (new Date(n.created_at) > new Date(messagesByUser[userId].lastMessage)) {
+            messagesByUser[userId].lastMessage = n.created_at;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching notifications:', e);
+    }
+
     return {
       statusCode: 200,
       headers,
@@ -152,6 +192,8 @@ export async function handler(event: any) {
           nodes: networkNodes,
           edges: networkEdges,
         },
+        recentMessages,
+        messagesByUser,
       }),
     };
   } catch (error: any) {
