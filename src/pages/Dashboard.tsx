@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Play, RotateCcw, CheckCircle2, PenLine, Flame, Brain, Zap,
@@ -595,7 +595,9 @@ export function Dashboard() {
   } | null>(null);
   const [showConfirmFasting, setShowConfirmFasting] = useState(false);
   const [showForgotFast, setShowForgotFast] = useState(false);
-  const [showAchievements, setShowAchievements] = useState(false);
+  const [showAchievementsModal, setShowAchievementsModal] = useState(false);
+  const [hoveredContributionDay, setHoveredContributionDay] = useState<{ date: Date; hours: number; x: number; y: number } | null>(null);
+  const journalSectionRef = useRef<HTMLDivElement>(null);
 
   // Gamification data - computed from pastFasts
   const xpData = pastFasts.length > 0 ? calculateXP(pastFasts) : { totalXP: 0, level: XP_LEVELS[0], progress: 0, unlockedAchievements: [] };
@@ -1037,6 +1039,30 @@ export function Dashboard() {
             </div>
           )}
 
+          {/* Level Badge - Opens Achievements */}
+          {pastFasts.length > 0 && (
+            <button
+              onClick={() => setShowAchievementsModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 10px',
+                background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+              title="View achievements"
+            >
+              <span style={{ fontSize: 14 }}>Lvl {xpData.level.level}</span>
+              <span style={{ opacity: 0.8, fontSize: 10 }}>{xpData.unlockedAchievements.length}/{ACHIEVEMENTS.length}</span>
+            </button>
+          )}
+
           {/* Theme toggle */}
           <button
             onClick={toggleTheme}
@@ -1291,6 +1317,7 @@ export function Dashboard() {
                 gap: 2,
                 overflowX: 'auto',
                 paddingBottom: 4,
+                position: 'relative',
               }}>
                 {Array.from({ length: 53 }, (_, weekIndex) => {
                   const weekData = contributionData.slice(weekIndex * 7, (weekIndex + 1) * 7);
@@ -1299,7 +1326,17 @@ export function Dashboard() {
                       {weekData.map((day, dayIndex) => (
                         <div
                           key={dayIndex}
-                          title={`${format(day.date, 'MMM d, yyyy')}: ${day.hours > 0 ? `${day.hours.toFixed(1)}h fasted` : 'No fasting'}`}
+                          onClick={(e) => {
+                            if (day.hours > 0) {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setHoveredContributionDay({
+                                date: day.date,
+                                hours: day.hours,
+                                x: rect.left,
+                                y: rect.bottom + 8,
+                              });
+                            }
+                          }}
                           style={{
                             width: 8,
                             height: 8,
@@ -1307,174 +1344,160 @@ export function Dashboard() {
                             background: day.level === 0
                               ? (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)')
                               : CONTRIBUTION_COLORS[day.level as keyof typeof CONTRIBUTION_COLORS],
-                            cursor: 'default',
+                            cursor: day.hours > 0 ? 'pointer' : 'default',
+                            transition: 'transform 0.1s',
                           }}
+                          onMouseEnter={(e) => {
+                            if (day.hours > 0) e.currentTarget.style.transform = 'scale(1.5)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }}
+                          title={day.hours > 0 ? `${format(day.date, 'MMM d')}: ${day.hours.toFixed(1)}h - Click for details` : ''}
                         />
                       ))}
                     </div>
                   );
                 })}
               </div>
-            </div>
 
-            {/* Level & Achievements Teaser - Expandable */}
-            <button
-              onClick={() => setShowAchievements(!showAchievements)}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '10px 12px',
-                background: 'transparent',
-                border: `1px solid ${colors.border}`,
-                borderRadius: 10,
-                cursor: 'pointer',
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.background = colors.surfaceHover}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 8,
-                  background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#fff',
-                  fontWeight: 700,
-                  fontSize: 14,
-                }}>
-                  {xpData.level.level}
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>
-                    {xpData.level.name}
-                  </div>
-                  <div style={{ fontSize: 11, color: colors.textMuted }}>
-                    {xpData.totalXP.toLocaleString()} XP • {xpData.unlockedAchievements.length}/{ACHIEVEMENTS.length} badges
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {/* Show first 3 unlocked achievement icons as teaser */}
-                {ACHIEVEMENTS.filter(a => xpData.unlockedAchievements.includes(a.id)).slice(0, 3).map(a => (
-                  <span key={a.id} style={{ fontSize: 16 }}>{a.icon}</span>
-                ))}
-                <span style={{
-                  fontSize: 18,
-                  color: colors.textMuted,
-                  transform: showAchievements ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.2s',
-                }}>
-                  ▾
-                </span>
-              </div>
-            </button>
+              {/* Contribution Day Popup */}
+              {hoveredContributionDay && (() => {
+                const dayStart = startOfDay(hoveredContributionDay.date).getTime();
+                const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+                const fastsOnDay = pastFasts.filter(fast => {
+                  const fastStart = new Date(fast.start_time).getTime();
+                  const fastEnd = fast.end_time ? new Date(fast.end_time).getTime() : Date.now();
+                  return fastStart < dayEnd && fastEnd > dayStart;
+                });
+                const hasJournalEntries = fastsOnDay.some(f => notes.some(n => n.fasting_id === f.id));
 
-            {/* Expanded Achievements Section */}
-            {showAchievements && (
-              <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
-                {/* XP Progress Bar */}
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 10,
-                    color: colors.textMuted,
-                    marginBottom: 4,
-                  }}>
-                    <span>Level {xpData.level.level}</span>
-                    <span>{xpData.level.maxXP === Infinity ? 'MAX!' : `${Math.round(xpData.progress)}% to Lvl ${xpData.level.level + 1}`}</span>
-                  </div>
-                  <div style={{
-                    height: 6,
-                    background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
-                    borderRadius: 3,
-                    overflow: 'hidden',
-                  }}>
+                return (
+                  <div
+                    style={{
+                      position: 'fixed',
+                      left: Math.min(hoveredContributionDay.x, window.innerWidth - 280),
+                      top: hoveredContributionDay.y,
+                      width: 260,
+                      background: colors.surface,
+                      borderRadius: 12,
+                      padding: 16,
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                      border: `1px solid ${colors.border}`,
+                      zIndex: 1000,
+                    }}
+                  >
+                    <button
+                      onClick={() => setHoveredContributionDay(null)}
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        background: 'transparent',
+                        border: 'none',
+                        color: colors.textMuted,
+                        cursor: 'pointer',
+                        fontSize: 18,
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+
+                    <div style={{ fontSize: 14, fontWeight: 600, color: colors.text, marginBottom: 8 }}>
+                      {format(hoveredContributionDay.date, 'EEEE, MMM d, yyyy')}
+                    </div>
+
                     <div style={{
-                      width: `${xpData.progress}%`,
-                      height: '100%',
-                      background: 'linear-gradient(90deg, #8b5cf6, #6366f1)',
-                      borderRadius: 3,
-                      transition: 'width 0.5s ease',
-                    }} />
-                  </div>
-                </div>
-
-                {/* Quick Stats */}
-                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-                  {[
-                    { label: 'Fasts', value: pastFasts.filter(f => f.completed).length },
-                    { label: 'Hours', value: Math.round(pastFasts.reduce((acc, f) => {
-                      if (f.end_time) return acc + (new Date(f.end_time).getTime() - new Date(f.start_time).getTime()) / (1000 * 60 * 60);
-                      return acc;
-                    }, 0)) },
-                    { label: 'Best', value: Math.round(Math.max(0, ...pastFasts.map(f => {
-                      if (f.end_time) return (new Date(f.end_time).getTime() - new Date(f.start_time).getTime()) / (1000 * 60 * 60);
-                      return 0;
-                    }))) + 'h' },
-                  ].map((stat, i) => (
-                    <div key={i} style={{
-                      background: colors.surfaceHover,
-                      borderRadius: 6,
-                      padding: '6px 10px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 4,
+                      gap: 8,
+                      marginBottom: 12,
+                      padding: '8px 10px',
+                      background: isDark ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.1)',
+                      borderRadius: 8,
                     }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: colors.text }}>{stat.value}</span>
-                      <span style={{ fontSize: 9, color: colors.textMuted }}>{stat.label}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* All Achievements */}
-                <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary, marginBottom: 8 }}>
-                  Achievements
-                </div>
-                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                  {ACHIEVEMENTS.map(achievement => {
-                    const unlocked = xpData.unlockedAchievements.includes(achievement.id);
-                    return (
-                      <div
-                        key={achievement.id}
-                        title={`${achievement.name}\n${achievement.desc}\n+${achievement.points} XP`}
-                        style={{
-                          width: 32,
-                          height: 32,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          background: unlocked ? (isDark ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.1)') : colors.surfaceHover,
-                          borderRadius: 6,
-                          border: unlocked ? '2px solid #8b5cf6' : `1px solid ${colors.border}`,
-                          opacity: unlocked ? 1 : 0.35,
-                          cursor: 'help',
-                          transition: 'transform 0.15s, opacity 0.15s',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'scale(1.15)';
-                          if (!unlocked) e.currentTarget.style.opacity = '0.6';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'scale(1)';
-                          if (!unlocked) e.currentTarget.style.opacity = '0.35';
-                        }}
-                      >
-                        <span style={{ fontSize: 16, filter: unlocked ? 'none' : 'grayscale(1)' }}>
-                          {achievement.icon}
-                        </span>
+                      <span style={{ fontSize: 20 }}>🔥</span>
+                      <div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: '#16a34a' }}>
+                          {hoveredContributionDay.hours.toFixed(1)}h
+                        </div>
+                        <div style={{ fontSize: 10, color: colors.textMuted }}>fasted this day</div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+                    </div>
+
+                    {/* Journal entries for this day */}
+                    {fastsOnDay.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary, marginBottom: 6 }}>
+                          Journal Entries
+                        </div>
+                        {fastsOnDay.map(fast => {
+                          const fastNotes = notes.filter(n => n.fasting_id === fast.id);
+                          if (fastNotes.length === 0) return null;
+                          return fastNotes.map(note => (
+                            <div key={note.id} style={{
+                              padding: 8,
+                              background: colors.surfaceHover,
+                              borderRadius: 6,
+                              marginBottom: 6,
+                              fontSize: 12,
+                            }}>
+                              <div style={{ color: colors.textMuted, marginBottom: 4, fontSize: 10 }}>
+                                Hour {note.hour_mark} • {MOODS.find(m => m.value === note.mood)?.emoji}
+                              </div>
+                              <div style={{ color: colors.text }}>{note.note}</div>
+                            </div>
+                          ));
+                        })}
+                      </div>
+                    )}
+
+                    {/* No journal entries - encourage writing */}
+                    {!hasJournalEntries && (
+                      <div style={{
+                        padding: 12,
+                        background: isDark ? 'rgba(139, 92, 246, 0.1)' : 'rgba(139, 92, 246, 0.08)',
+                        borderRadius: 8,
+                        textAlign: 'center',
+                      }}>
+                        <div style={{ fontSize: 24, marginBottom: 6 }}>📝</div>
+                        <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 8 }}>
+                          No journal entry for this fast
+                        </div>
+                        <div style={{ fontSize: 11, color: colors.textMuted, marginBottom: 10 }}>
+                          Recording how you feel helps track patterns and keeps you motivated!
+                        </div>
+                        {currentFast && (
+                          <button
+                            onClick={() => {
+                              setHoveredContributionDay(null);
+                              setShowDiary(true);
+                              setTimeout(() => {
+                                journalSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+                              }, 100);
+                            }}
+                            style={{
+                              padding: '8px 16px',
+                              background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 8,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Write in Journal
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
           </div>
         )}
 
@@ -2727,28 +2750,265 @@ export function Dashboard() {
           )}
         </div>
 
+        {/* Achievements Modal */}
+        {showAchievementsModal && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 24,
+              zIndex: 100,
+              backdropFilter: 'blur(4px)',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowAchievementsModal(false);
+            }}
+          >
+            <div style={{
+              background: colors.surface,
+              borderRadius: 24,
+              padding: 24,
+              maxWidth: 480,
+              width: '100%',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              position: 'relative',
+              border: `1px solid ${colors.border}`,
+              boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+            }}>
+              <button
+                onClick={() => setShowAchievementsModal(false)}
+                style={{
+                  position: 'absolute',
+                  top: 16,
+                  right: 16,
+                  width: 32,
+                  height: 32,
+                  background: colors.surfaceHover,
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontSize: 16,
+                  color: colors.textMuted,
+                }}
+              >
+                ✕
+              </button>
+
+              {/* Header */}
+              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                <div style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 16,
+                  background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontWeight: 800,
+                  fontSize: 28,
+                  margin: '0 auto 12px',
+                  boxShadow: '0 8px 24px rgba(139, 92, 246, 0.3)',
+                }}>
+                  {xpData.level.level}
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: colors.text }}>
+                  {xpData.level.name}
+                </div>
+                <div style={{ fontSize: 14, color: colors.textSecondary, marginTop: 4 }}>
+                  {xpData.totalXP.toLocaleString()} XP
+                </div>
+
+                {/* XP Progress */}
+                <div style={{ marginTop: 16, padding: '0 20px' }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: 11,
+                    color: colors.textMuted,
+                    marginBottom: 6,
+                  }}>
+                    <span>Level {xpData.level.level}</span>
+                    <span>{xpData.level.maxXP === Infinity ? 'MAX LEVEL!' : `${Math.round(xpData.progress)}% to Level ${xpData.level.level + 1}`}</span>
+                  </div>
+                  <div style={{
+                    height: 8,
+                    background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+                    borderRadius: 4,
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      width: `${xpData.progress}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #8b5cf6, #6366f1)',
+                      borderRadius: 4,
+                    }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: 16,
+                marginBottom: 24,
+                padding: '16px 0',
+                borderTop: `1px solid ${colors.border}`,
+                borderBottom: `1px solid ${colors.border}`,
+              }}>
+                {[
+                  { label: 'Fasts', value: pastFasts.filter(f => f.completed).length },
+                  { label: 'Total Hours', value: Math.round(pastFasts.reduce((acc, f) => {
+                    if (f.end_time) return acc + (new Date(f.end_time).getTime() - new Date(f.start_time).getTime()) / (1000 * 60 * 60);
+                    return acc;
+                  }, 0)) },
+                  { label: 'Longest', value: Math.round(Math.max(0, ...pastFasts.map(f => {
+                    if (f.end_time) return (new Date(f.end_time).getTime() - new Date(f.start_time).getTime()) / (1000 * 60 * 60);
+                    return 0;
+                  }))) + 'h' },
+                ].map((stat, i) => (
+                  <div key={i} style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: colors.text }}>{stat.value}</div>
+                    <div style={{ fontSize: 11, color: colors.textMuted }}>{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Achievements */}
+              <div style={{ fontSize: 14, fontWeight: 600, color: colors.text, marginBottom: 16 }}>
+                Achievements ({xpData.unlockedAchievements.length}/{ACHIEVEMENTS.length})
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {ACHIEVEMENTS.map(achievement => {
+                  const unlocked = xpData.unlockedAchievements.includes(achievement.id);
+
+                  // Generate detailed explanation for why they earned it
+                  const getUnlockReason = () => {
+                    const completedFasts = pastFasts.filter(f => f.completed).length;
+                    const totalHours = Math.round(pastFasts.reduce((acc, f) => {
+                      if (f.end_time) return acc + (new Date(f.end_time).getTime() - new Date(f.start_time).getTime()) / (1000 * 60 * 60);
+                      return acc;
+                    }, 0));
+                    const longestFast = Math.round(Math.max(0, ...pastFasts.map(f => {
+                      if (f.end_time) return (new Date(f.end_time).getTime() - new Date(f.start_time).getTime()) / (1000 * 60 * 60);
+                      return 0;
+                    })));
+
+                    switch (achievement.requirement.type) {
+                      case 'fasts':
+                        return `You've completed ${completedFasts} fasts!`;
+                      case 'duration':
+                        return `Your longest fast was ${longestFast}h - crushing the ${achievement.requirement.hours}h target!`;
+                      case 'total_hours':
+                        return `You've fasted ${totalHours} total hours!`;
+                      case 'special':
+                        if (achievement.requirement.condition === 'friday_fast') return 'You fasted through a Friday night!';
+                        if (achievement.requirement.condition === 'sunday_fast') return 'You fasted through Sunday brunch!';
+                        if (achievement.requirement.condition === 'midnight_start') return 'You started a fast after midnight!';
+                        if (achievement.requirement.condition === 'early_start') return 'You started a fast before 6am!';
+                        return 'Special achievement unlocked!';
+                      default:
+                        return achievement.desc;
+                    }
+                  };
+
+                  return (
+                    <div
+                      key={achievement.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: 12,
+                        background: unlocked
+                          ? (isDark ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.08)')
+                          : colors.surfaceHover,
+                        borderRadius: 12,
+                        border: unlocked ? '2px solid #8b5cf6' : `1px solid ${colors.border}`,
+                        opacity: unlocked ? 1 : 0.5,
+                      }}
+                    >
+                      <div style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 10,
+                        background: unlocked ? 'linear-gradient(135deg, #8b5cf6, #6366f1)' : colors.surface,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 24,
+                        filter: unlocked ? 'none' : 'grayscale(1)',
+                      }}>
+                        {achievement.icon}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: unlocked ? '#8b5cf6' : colors.text,
+                        }}>
+                          {achievement.name}
+                        </div>
+                        <div style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+                          {unlocked ? getUnlockReason() : achievement.desc}
+                        </div>
+                      </div>
+                      <div style={{
+                        padding: '4px 8px',
+                        background: unlocked ? '#8b5cf6' : colors.surfaceHover,
+                        color: unlocked ? '#fff' : colors.textMuted,
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }}>
+                        +{achievement.points}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Diary Modal */}
         {showDiary && currentFast && (
-          <div style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 24,
-            zIndex: 100,
-            overflowY: 'auto',
-          }}>
+          <div
+            ref={journalSectionRef}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 24,
+              zIndex: 100,
+              overflowY: 'auto',
+              backdropFilter: 'blur(4px)',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowDiary(false);
+            }}
+          >
             <div style={{
-              background: '#fff',
-              borderRadius: 20,
+              background: colors.surface,
+              borderRadius: 24,
               padding: 28,
               maxWidth: 540,
               width: '100%',
               maxHeight: '90vh',
               overflowY: 'auto',
               position: 'relative',
+              border: `1px solid ${colors.border}`,
+              boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
             }}>
               <button
                 onClick={() => setShowDiary(false)}
@@ -2758,19 +3018,39 @@ export function Dashboard() {
                   right: 16,
                   width: 36,
                   height: 36,
-                  background: '#f0f0f0',
+                  background: colors.surfaceHover,
                   border: 'none',
                   borderRadius: 8,
                   cursor: 'pointer',
                   fontSize: 18,
-                  color: '#666',
+                  color: colors.textMuted,
                 }}
               >
                 ✕
               </button>
-              <h3 style={{ margin: '0 0 20px', fontSize: 20, fontWeight: 700, color: '#7c3aed' }}>
-                How are you feeling? <span style={{ fontWeight: 400, opacity: 0.6 }}>Hour {Math.floor(elapsedHours)}</span>
-              </h3>
+
+              {/* Journal Header */}
+              <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                <div style={{ fontSize: 40, marginBottom: 8 }}>📝</div>
+                <h3 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: colors.text }}>
+                  Journal Entry
+                </h3>
+                <div style={{ fontSize: 13, color: colors.textSecondary }}>
+                  Hour {Math.floor(elapsedHours)} of your fast
+                </div>
+                <div style={{
+                  marginTop: 12,
+                  padding: '8px 16px',
+                  background: isDark ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.1)',
+                  borderRadius: 20,
+                  display: 'inline-block',
+                  fontSize: 12,
+                  color: '#8b5cf6',
+                  fontWeight: 500,
+                }}>
+                  Recording your feelings helps you understand your body better
+                </div>
+              </div>
 
             {/* Overall Mood selector */}
             <div style={{ marginBottom: 20 }}>
