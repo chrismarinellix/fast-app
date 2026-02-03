@@ -74,6 +74,8 @@ VITE_STRIPE_FAST_PRICE_ID=price_1SmAi5LjCULrSd7wKBcYfaj1
 ### Netlify Functions
 ```
 SUPABASE_URL, SUPABASE_SERVICE_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+RESEND_API_KEY        # For email notifications (get from resend.com)
+FROM_EMAIL            # Optional, defaults to notifications@fast-fasting-app.netlify.app
 ```
 
 ## Commands

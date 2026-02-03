@@ -191,6 +191,7 @@ export function Admin() {
   const [notificationTitle, setNotificationTitle] = useState('');
   const [notificationMessage, setNotificationMessage] = useState('');
   const [notificationType, setNotificationType] = useState<'admin' | 'system' | 'reminder'>('admin');
+  const [sendViaEmail, setSendViaEmail] = useState(false);
   const [sendingNotification, setSendingNotification] = useState(false);
   const [notificationResult, setNotificationResult] = useState<string | null>(null);
 
@@ -244,7 +245,8 @@ export function Admin() {
     setNotificationResult(null);
 
     try {
-      const response = await fetch('/.netlify/functions/admin-send-notification', {
+      // Send in-app notification
+      const inAppResponse = await fetch('/.netlify/functions/admin-send-notification', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -258,20 +260,51 @@ export function Admin() {
         }),
       });
 
-      const data = await response.json();
-      if (response.ok) {
-        setNotificationResult(`Success! ${data.message}`);
+      const inAppData = await inAppResponse.json();
+      let resultMessage = '';
+
+      if (inAppResponse.ok) {
+        resultMessage = `In-app: ${inAppData.message}`;
+      } else {
+        resultMessage = `In-app error: ${inAppData.error}`;
+        if (inAppData.migration) {
+          console.log('Run this SQL migration:', inAppData.migration);
+        }
+      }
+
+      // Also send email if requested
+      if (sendViaEmail) {
+        const emailResponse = await fetch('/.netlify/functions/send-email', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userIds: notificationTargets,
+            subject: notificationTitle,
+            message: notificationMessage,
+            template: notificationType,
+          }),
+        });
+
+        const emailData = await emailResponse.json();
+        if (emailResponse.ok) {
+          resultMessage += ` | Email: ${emailData.message}`;
+        } else {
+          resultMessage += ` | Email error: ${emailData.error}`;
+        }
+      }
+
+      setNotificationResult(resultMessage.includes('error') ? resultMessage : `Success! ${resultMessage}`);
+      if (!resultMessage.includes('error')) {
         setNotificationTitle('');
         setNotificationMessage('');
         setTimeout(() => {
           setShowNotificationModal(false);
           setNotificationResult(null);
-        }, 2000);
-      } else {
-        setNotificationResult(`Error: ${data.error}`);
-        if (data.migration) {
-          console.log('Run this SQL migration:', data.migration);
-        }
+          setSendViaEmail(false);
+        }, 2500);
       }
     } catch (err: any) {
       setNotificationResult(`Error: ${err.message}`);
@@ -1657,6 +1690,41 @@ What fasting schedule has worked best for your weight loss?`;
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Email toggle */}
+              <div style={{ marginBottom: 20 }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    cursor: 'pointer',
+                    padding: '14px 16px',
+                    background: sendViaEmail ? '#dcfce7' : '#f9fafb',
+                    border: sendViaEmail ? '2px solid #22c55e' : '1px solid #e5e7eb',
+                    borderRadius: 12,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={sendViaEmail}
+                    onChange={(e) => setSendViaEmail(e.target.checked)}
+                    style={{
+                      width: 20,
+                      height: 20,
+                      accentColor: '#22c55e',
+                    }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 600, color: '#333', fontSize: 14 }}>
+                      📧 Also send via Email
+                    </div>
+                    <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                      Send an email in addition to in-app notification
+                    </div>
+                  </div>
+                </label>
               </div>
 
               {notificationResult && (

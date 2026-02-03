@@ -10,3 +10,7 @@
 
 [functions]
   node_bundler = "esbuild"
+
+# Scheduled function for automated check-ins (runs every 4 hours)
+[functions."automated-checkins"]
+  schedule = "0 */4 * * *"
