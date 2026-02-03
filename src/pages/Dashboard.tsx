@@ -5,7 +5,7 @@ import {
   Heart, Sparkles, Clock, History, Share2, Edit3,
   LogOut, TrendingUp, Award, Target, Plus, Settings,
   Trash2, Link, Eye, Copy, X, Check, MessageSquare, Users, Bell,
-  Sun, Moon, Trophy
+  Sun, Moon
 } from 'lucide-react';
 import { format, isToday, isYesterday, subDays, startOfDay, differenceInDays } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -595,7 +595,7 @@ export function Dashboard() {
   } | null>(null);
   const [showConfirmFasting, setShowConfirmFasting] = useState(false);
   const [showForgotFast, setShowForgotFast] = useState(false);
-  const [showStats, setShowStats] = useState(true);
+  const [showAchievements, setShowAchievements] = useState(false);
 
   // Gamification data - computed from pastFasts
   const xpData = pastFasts.length > 0 ? calculateXP(pastFasts) : { totalXP: 0, level: XP_LEVELS[0], progress: 0, unlockedAchievements: [] };
@@ -1260,232 +1260,220 @@ export function Dashboard() {
             marginBottom: 24,
             border: `1px solid ${colors.border}`,
           }}>
-            {/* Level & XP Header */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: 16,
-              flexWrap: 'wrap',
-              gap: 12,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Contribution Chart - Always visible */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 8,
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary }}>
+                  365 Days
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: colors.textMuted }}>
+                  <span>Less</span>
+                  {[1, 2, 3, 4, 5, 6].map(level => (
+                    <div key={level} style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 2,
+                      background: CONTRIBUTION_COLORS[level as keyof typeof CONTRIBUTION_COLORS],
+                    }} />
+                  ))}
+                  <span>More</span>
+                </div>
+              </div>
+
+              {/* GitHub-style contribution grid - 365 days = 52 weeks */}
+              <div style={{
+                display: 'flex',
+                gap: 2,
+                overflowX: 'auto',
+                paddingBottom: 4,
+              }}>
+                {Array.from({ length: 53 }, (_, weekIndex) => {
+                  const weekData = contributionData.slice(weekIndex * 7, (weekIndex + 1) * 7);
+                  return (
+                    <div key={weekIndex} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {weekData.map((day, dayIndex) => (
+                        <div
+                          key={dayIndex}
+                          title={`${format(day.date, 'MMM d, yyyy')}: ${day.hours > 0 ? `${day.hours.toFixed(1)}h fasted` : 'No fasting'}`}
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 2,
+                            background: day.level === 0
+                              ? (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)')
+                              : CONTRIBUTION_COLORS[day.level as keyof typeof CONTRIBUTION_COLORS],
+                            cursor: 'default',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Level & Achievements Teaser - Expandable */}
+            <button
+              onClick={() => setShowAchievements(!showAchievements)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 12px',
+                background: 'transparent',
+                border: `1px solid ${colors.border}`,
+                borderRadius: 10,
+                cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = colors.surfaceHover}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 14,
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
                   background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#fff',
-                  fontWeight: 800,
-                  fontSize: 20,
-                  boxShadow: '0 4px 15px rgba(139, 92, 246, 0.3)',
+                  fontWeight: 700,
+                  fontSize: 14,
                 }}>
                   {xpData.level.level}
                 </div>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: colors.text }}>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>
                     {xpData.level.name}
                   </div>
-                  <div style={{ fontSize: 13, color: colors.textSecondary }}>
-                    {xpData.totalXP.toLocaleString()} XP • {xpData.unlockedAchievements.length}/{ACHIEVEMENTS.length} Achievements
+                  <div style={{ fontSize: 11, color: colors.textMuted }}>
+                    {xpData.totalXP.toLocaleString()} XP • {xpData.unlockedAchievements.length}/{ACHIEVEMENTS.length} badges
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => setShowStats(!showStats)}
-                style={{
-                  padding: '8px 16px',
-                  background: colors.surfaceHover,
-                  border: `1px solid ${colors.border}`,
-                  borderRadius: 10,
-                  color: colors.textSecondary,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                <Trophy size={16} />
-                {showStats ? 'Hide Stats' : 'Show Stats'}
-              </button>
-            </div>
-
-            {/* XP Progress Bar */}
-            <div style={{ marginBottom: showStats ? 20 : 0 }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: 11,
-                color: colors.textMuted,
-                marginBottom: 6,
-              }}>
-                <span>Level {xpData.level.level}</span>
-                <span>{xpData.level.maxXP === Infinity ? 'MAX LEVEL!' : `${Math.round(xpData.progress)}% to Level ${xpData.level.level + 1}`}</span>
-              </div>
-              <div style={{
-                height: 8,
-                background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
-                borderRadius: 4,
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  width: `${xpData.progress}%`,
-                  height: '100%',
-                  background: 'linear-gradient(90deg, #8b5cf6, #6366f1)',
-                  borderRadius: 4,
-                  transition: 'width 0.5s ease',
-                }} />
-              </div>
-            </div>
-
-            {showStats && (
-              <>
-                {/* Contribution Chart */}
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: 12,
-                  }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>
-                      Fasting Activity
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: colors.textMuted }}>
-                      <span>Less</span>
-                      {[1, 2, 3, 4, 5, 6].map(level => (
-                        <div key={level} style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 2,
-                          background: CONTRIBUTION_COLORS[level as keyof typeof CONTRIBUTION_COLORS],
-                        }} />
-                      ))}
-                      <span>More</span>
-                    </div>
-                  </div>
-
-                  {/* GitHub-style contribution grid - 365 days = 52 weeks */}
-                  <div style={{
-                    display: 'flex',
-                    gap: 2,
-                    overflowX: 'auto',
-                    paddingBottom: 4,
-                  }}>
-                    {Array.from({ length: 53 }, (_, weekIndex) => {
-                      const weekData = contributionData.slice(weekIndex * 7, (weekIndex + 1) * 7);
-                      return (
-                        <div key={weekIndex} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          {weekData.map((day, dayIndex) => (
-                            <div
-                              key={dayIndex}
-                              title={`${format(day.date, 'MMM d, yyyy')}: ${day.hours > 0 ? `${day.hours.toFixed(1)}h fasted` : 'No fasting'}`}
-                              style={{
-                                width: 8,
-                                height: 8,
-                                borderRadius: 2,
-                                background: day.level === 0
-                                  ? (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)')
-                                  : CONTRIBUTION_COLORS[day.level as keyof typeof CONTRIBUTION_COLORS],
-                                cursor: 'default',
-                              }}
-                            />
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Quick Stats - Compact Row */}
-                <div style={{
-                  display: 'flex',
-                  gap: 8,
-                  marginBottom: 12,
-                  flexWrap: 'wrap',
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {/* Show first 3 unlocked achievement icons as teaser */}
+                {ACHIEVEMENTS.filter(a => xpData.unlockedAchievements.includes(a.id)).slice(0, 3).map(a => (
+                  <span key={a.id} style={{ fontSize: 16 }}>{a.icon}</span>
+                ))}
+                <span style={{
+                  fontSize: 18,
+                  color: colors.textMuted,
+                  transform: showAchievements ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s',
                 }}>
+                  ▾
+                </span>
+              </div>
+            </button>
+
+            {/* Expanded Achievements Section */}
+            {showAchievements && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
+                {/* XP Progress Bar */}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: 10,
+                    color: colors.textMuted,
+                    marginBottom: 4,
+                  }}>
+                    <span>Level {xpData.level.level}</span>
+                    <span>{xpData.level.maxXP === Infinity ? 'MAX!' : `${Math.round(xpData.progress)}% to Lvl ${xpData.level.level + 1}`}</span>
+                  </div>
+                  <div style={{
+                    height: 6,
+                    background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      width: `${xpData.progress}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #8b5cf6, #6366f1)',
+                      borderRadius: 3,
+                      transition: 'width 0.5s ease',
+                    }} />
+                  </div>
+                </div>
+
+                {/* Quick Stats */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
                   {[
                     { label: 'Fasts', value: pastFasts.filter(f => f.completed).length },
                     { label: 'Hours', value: Math.round(pastFasts.reduce((acc, f) => {
                       if (f.end_time) return acc + (new Date(f.end_time).getTime() - new Date(f.start_time).getTime()) / (1000 * 60 * 60);
                       return acc;
                     }, 0)) },
-                    { label: 'Longest', value: Math.round(Math.max(0, ...pastFasts.map(f => {
+                    { label: 'Best', value: Math.round(Math.max(0, ...pastFasts.map(f => {
                       if (f.end_time) return (new Date(f.end_time).getTime() - new Date(f.start_time).getTime()) / (1000 * 60 * 60);
                       return 0;
                     }))) + 'h' },
-                    { label: 'This Month', value: pastFasts.filter(f => {
-                      const now = new Date();
-                      const start = new Date(f.start_time);
-                      return start.getMonth() === now.getMonth() && start.getFullYear() === now.getFullYear();
-                    }).length },
                   ].map((stat, i) => (
                     <div key={i} style={{
                       background: colors.surfaceHover,
-                      borderRadius: 8,
-                      padding: '8px 12px',
+                      borderRadius: 6,
+                      padding: '6px 10px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
+                      gap: 4,
                     }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: colors.text }}>{stat.value}</span>
-                      <span style={{ fontSize: 10, color: colors.textMuted }}>{stat.label}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: colors.text }}>{stat.value}</span>
+                      <span style={{ fontSize: 9, color: colors.textMuted }}>{stat.label}</span>
                     </div>
                   ))}
                 </div>
 
-                {/* Achievements - Compact */}
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary, marginBottom: 8 }}>
-                    Achievements ({xpData.unlockedAchievements.length}/{ACHIEVEMENTS.length})
-                  </div>
-                  <div style={{
-                    display: 'flex',
-                    gap: 6,
-                    flexWrap: 'wrap',
-                  }}>
-                    {ACHIEVEMENTS.map(achievement => {
-                      const unlocked = xpData.unlockedAchievements.includes(achievement.id);
-                      return (
-                        <div
-                          key={achievement.id}
-                          title={`${achievement.name}\n${achievement.desc}\n+${achievement.points} XP`}
-                          style={{
-                            width: 36,
-                            height: 36,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: unlocked ? (isDark ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.1)') : colors.surfaceHover,
-                            borderRadius: 8,
-                            border: unlocked ? '2px solid #8b5cf6' : `1px solid ${colors.border}`,
-                            opacity: unlocked ? 1 : 0.4,
-                            cursor: 'help',
-                            transition: 'transform 0.15s, opacity 0.15s',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'scale(1.15)';
-                            if (!unlocked) e.currentTarget.style.opacity = '0.7';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'scale(1)';
-                            if (!unlocked) e.currentTarget.style.opacity = '0.4';
-                          }}
-                        >
-                          <span style={{ fontSize: 18, filter: unlocked ? 'none' : 'grayscale(1)' }}>
-                            {achievement.icon}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                {/* All Achievements */}
+                <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary, marginBottom: 8 }}>
+                  Achievements
                 </div>
-              </>
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                  {ACHIEVEMENTS.map(achievement => {
+                    const unlocked = xpData.unlockedAchievements.includes(achievement.id);
+                    return (
+                      <div
+                        key={achievement.id}
+                        title={`${achievement.name}\n${achievement.desc}\n+${achievement.points} XP`}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: unlocked ? (isDark ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.1)') : colors.surfaceHover,
+                          borderRadius: 6,
+                          border: unlocked ? '2px solid #8b5cf6' : `1px solid ${colors.border}`,
+                          opacity: unlocked ? 1 : 0.35,
+                          cursor: 'help',
+                          transition: 'transform 0.15s, opacity 0.15s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'scale(1.15)';
+                          if (!unlocked) e.currentTarget.style.opacity = '0.6';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'scale(1)';
+                          if (!unlocked) e.currentTarget.style.opacity = '0.35';
+                        }}
+                      >
+                        <span style={{ fontSize: 16, filter: unlocked ? 'none' : 'grayscale(1)' }}>
+                          {achievement.icon}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
         )}
