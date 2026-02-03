@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 
+interface Star {
+  x: number;
+  y: number;
+  z: number;
+  size: number;
+}
+
 interface Shape {
   x: number;
   y: number;
@@ -9,7 +16,7 @@ interface Shape {
   rotationSpeed: number;
   velocityX: number;
   velocityY: number;
-  type: number; // 0 = triangle, 1 = square, 2 = hexagon, 3 = circle
+  type: number;
   opacity: number;
 }
 
@@ -18,335 +25,190 @@ export function WebGPUBackground() {
   const { isDark } = useTheme();
   const [supported, setSupported] = useState(true);
   const animationRef = useRef<number | undefined>(undefined);
-  const shapesRef = useRef<Shape[]>([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    let device: GPUDevice | null = null;
-    let context: GPUCanvasContext | null = null;
-    let pipeline: GPURenderPipeline | null = null;
-    let uniformBuffer: GPUBuffer | null = null;
-    let bindGroup: GPUBindGroup | null = null;
+    // Use Canvas 2D for better compatibility and simpler starfield
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      setSupported(false);
+      return;
+    }
 
-    const initWebGPU = async () => {
-      // Check WebGPU support
-      if (!navigator.gpu) {
-        console.log('WebGPU not supported, falling back to CSS');
-        setSupported(false);
-        return;
-      }
+    // Initialize stars
+    const stars: Star[] = Array.from({ length: 150 }, () => ({
+      x: Math.random() * 2 - 1,
+      y: Math.random() * 2 - 1,
+      z: Math.random(),
+      size: Math.random() * 1.5 + 0.5,
+    }));
 
-      try {
-        const adapter = await navigator.gpu.requestAdapter();
-        if (!adapter) {
-          setSupported(false);
-          return;
-        }
+    // Initialize geometric shapes
+    const shapes: Shape[] = Array.from({ length: 8 }, () => ({
+      x: Math.random() * 2 - 1,
+      y: Math.random() * 2 - 1,
+      size: 20 + Math.random() * 40,
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: (Math.random() - 0.5) * 0.005,
+      velocityX: (Math.random() - 0.5) * 0.3,
+      velocityY: (Math.random() - 0.5) * 0.3,
+      type: Math.floor(Math.random() * 4),
+      opacity: 0.03 + Math.random() * 0.05,
+    }));
 
-        device = await adapter.requestDevice();
-        context = canvas.getContext('webgpu');
-        if (!context) {
-          setSupported(false);
-          return;
-        }
-
-        const format = navigator.gpu.getPreferredCanvasFormat();
-        context.configure({
-          device,
-          format,
-          alphaMode: 'premultiplied',
-        });
-
-        // Initialize shapes
-        const numShapes = 15;
-        shapesRef.current = Array.from({ length: numShapes }, () => ({
-          x: Math.random() * 2 - 1,
-          y: Math.random() * 2 - 1,
-          size: 0.03 + Math.random() * 0.06,
-          rotation: Math.random() * Math.PI * 2,
-          rotationSpeed: (Math.random() - 0.5) * 0.02,
-          velocityX: (Math.random() - 0.5) * 0.002,
-          velocityY: (Math.random() - 0.5) * 0.002,
-          type: Math.floor(Math.random() * 4),
-          opacity: 0.1 + Math.random() * 0.15,
-        }));
-
-        // Shader code
-        const shaderCode = `
-          struct Uniforms {
-            color: vec4f,
-            shape: vec4f, // x, y, size, rotation
-            shapeType: f32,
-            aspectRatio: f32,
-          }
-
-          @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-
-          struct VertexOutput {
-            @builtin(position) position: vec4f,
-            @location(0) uv: vec2f,
-          }
-
-          @vertex
-          fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
-            var positions = array<vec2f, 6>(
-              vec2f(-1.0, -1.0),
-              vec2f(1.0, -1.0),
-              vec2f(-1.0, 1.0),
-              vec2f(-1.0, 1.0),
-              vec2f(1.0, -1.0),
-              vec2f(1.0, 1.0)
-            );
-
-            let pos = positions[vertexIndex];
-            let size = uniforms.shape.z;
-            let rotation = uniforms.shape.w;
-
-            let cosR = cos(rotation);
-            let sinR = sin(rotation);
-            var rotated = vec2f(
-              pos.x * cosR - pos.y * sinR,
-              pos.x * sinR + pos.y * cosR
-            );
-
-            rotated.x *= size;
-            rotated.y *= size * uniforms.aspectRatio;
-
-            var output: VertexOutput;
-            output.position = vec4f(
-              rotated.x + uniforms.shape.x,
-              rotated.y + uniforms.shape.y,
-              0.0, 1.0
-            );
-            output.uv = pos * 0.5 + 0.5;
-            return output;
-          }
-
-          fn sdTriangle(p: vec2f) -> f32 {
-            let k = 1.732050808; // sqrt(3)
-            var q = vec2f(abs(p.x) - 0.5, p.y + 0.5 / k);
-            if (q.x + k * q.y > 0.0) {
-              q = vec2f(q.x - k * q.y, -k * q.x - q.y) / 2.0;
-            }
-            q.x -= clamp(q.x, -1.0, 0.0);
-            return -length(q) * sign(q.y);
-          }
-
-          fn sdHexagon(p: vec2f) -> f32 {
-            let k = vec3f(-0.866025404, 0.5, 0.577350269);
-            var q = abs(p);
-            q = q - 2.0 * min(dot(k.xy, q), 0.0) * k.xy;
-            q = q - vec2f(clamp(q.x, -k.z, k.z), 0.6);
-            return length(q) * sign(q.y);
-          }
-
-          @fragment
-          fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            let uv = input.uv * 2.0 - 1.0;
-            var d: f32;
-
-            let shapeType = i32(uniforms.shapeType);
-
-            if (shapeType == 0) {
-              // Triangle
-              d = sdTriangle(uv * 1.2);
-            } else if (shapeType == 1) {
-              // Square
-              let q = abs(uv) - vec2f(0.5);
-              d = length(max(q, vec2f(0.0))) + min(max(q.x, q.y), 0.0);
-            } else if (shapeType == 2) {
-              // Hexagon
-              d = sdHexagon(uv * 0.8);
-            } else {
-              // Circle
-              d = length(uv) - 0.5;
-            }
-
-            let edge = smoothstep(0.02, -0.02, d);
-            let fill = smoothstep(0.0, -0.1, d) * 0.3;
-            let alpha = (edge * 0.8 + fill) * uniforms.color.a;
-
-            return vec4f(uniforms.color.rgb, alpha);
-          }
-        `;
-
-        const shaderModule = device.createShaderModule({ code: shaderCode });
-
-        pipeline = device.createRenderPipeline({
-          layout: 'auto',
-          vertex: {
-            module: shaderModule,
-            entryPoint: 'vertexMain',
-          },
-          fragment: {
-            module: shaderModule,
-            entryPoint: 'fragmentMain',
-            targets: [{
-              format,
-              blend: {
-                color: {
-                  srcFactor: 'src-alpha',
-                  dstFactor: 'one-minus-src-alpha',
-                  operation: 'add',
-                },
-                alpha: {
-                  srcFactor: 'one',
-                  dstFactor: 'one-minus-src-alpha',
-                  operation: 'add',
-                },
-              },
-            }],
-          },
-          primitive: {
-            topology: 'triangle-list',
-          },
-        });
-
-        uniformBuffer = device.createBuffer({
-          size: 48, // 6 * 4 bytes for uniforms (padded)
-          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
-
-        bindGroup = device.createBindGroup({
-          layout: pipeline.getBindGroupLayout(0),
-          entries: [{
-            binding: 0,
-            resource: { buffer: uniformBuffer },
-          }],
-        });
-
-        // Animation loop
-        const render = () => {
-          if (!device || !context || !pipeline || !uniformBuffer || !bindGroup) return;
-
-          const width = canvas.width;
-          const height = canvas.height;
-          const aspectRatio = width / height;
-
-          // Update shapes
-          shapesRef.current.forEach(shape => {
-            shape.x += shape.velocityX;
-            shape.y += shape.velocityY;
-            shape.rotation += shape.rotationSpeed;
-
-            // Wrap around edges
-            if (shape.x < -1.2) shape.x = 1.2;
-            if (shape.x > 1.2) shape.x = -1.2;
-            if (shape.y < -1.2) shape.y = 1.2;
-            if (shape.y > 1.2) shape.y = -1.2;
-          });
-
-          const commandEncoder = device.createCommandEncoder();
-          const textureView = context.getCurrentTexture().createView();
-
-          const renderPass = commandEncoder.beginRenderPass({
-            colorAttachments: [{
-              view: textureView,
-              clearValue: { r: 0, g: 0, b: 0, a: 0 },
-              loadOp: 'clear',
-              storeOp: 'store',
-            }],
-          });
-
-          renderPass.setPipeline(pipeline);
-
-          // Draw each shape
-          shapesRef.current.forEach(shape => {
-            const uniformData = new Float32Array([
-              // color (rgba) - green tint for fasting app
-              0.34, 0.77, 0.37, shape.opacity,
-              // shape (x, y, size, rotation)
-              shape.x, shape.y, shape.size, shape.rotation,
-              // shapeType, aspectRatio
-              shape.type, aspectRatio,
-              0, 0, // padding
-            ]);
-
-            device!.queue.writeBuffer(uniformBuffer!, 0, uniformData);
-            renderPass.setBindGroup(0, bindGroup!);
-            renderPass.draw(6);
-          });
-
-          renderPass.end();
-          device.queue.submit([commandEncoder.finish()]);
-
-          animationRef.current = requestAnimationFrame(render);
-        };
-
-        // Handle resize
-        const handleResize = () => {
-          canvas.width = window.innerWidth * window.devicePixelRatio;
-          canvas.height = window.innerHeight * window.devicePixelRatio;
-        };
-
-        handleResize();
-        window.addEventListener('resize', handleResize);
-
-        render();
-
-        return () => {
-          window.removeEventListener('resize', handleResize);
-          if (animationRef.current) {
-            cancelAnimationFrame(animationRef.current);
-          }
-        };
-      } catch (e) {
-        console.error('WebGPU init error:', e);
-        setSupported(false);
-      }
+    const handleResize = () => {
+      canvas.width = window.innerWidth * window.devicePixelRatio;
+      canvas.height = window.innerHeight * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
     };
 
-    initWebGPU();
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    const drawStar = (x: number, y: number, size: number, alpha: number) => {
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fillStyle = isDark
+        ? `rgba(255, 255, 255, ${alpha})`
+        : `rgba(34, 197, 94, ${alpha * 0.5})`;
+      ctx.fill();
+    };
+
+    const drawTriangle = (x: number, y: number, size: number, rotation: number, opacity: number) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.beginPath();
+      ctx.moveTo(0, -size);
+      ctx.lineTo(size * 0.866, size * 0.5);
+      ctx.lineTo(-size * 0.866, size * 0.5);
+      ctx.closePath();
+      ctx.strokeStyle = isDark
+        ? `rgba(34, 197, 94, ${opacity})`
+        : `rgba(34, 197, 94, ${opacity * 0.7})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    const drawSquare = (x: number, y: number, size: number, rotation: number, opacity: number) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.strokeStyle = isDark
+        ? `rgba(34, 197, 94, ${opacity})`
+        : `rgba(34, 197, 94, ${opacity * 0.7})`;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-size / 2, -size / 2, size, size);
+      ctx.restore();
+    };
+
+    const drawHexagon = (x: number, y: number, size: number, rotation: number, opacity: number) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i;
+        const px = Math.cos(angle) * size;
+        const py = Math.sin(angle) * size;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = isDark
+        ? `rgba(34, 197, 94, ${opacity})`
+        : `rgba(34, 197, 94, ${opacity * 0.7})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    const drawCircle = (x: number, y: number, size: number, opacity: number) => {
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.strokeStyle = isDark
+        ? `rgba(34, 197, 94, ${opacity})`
+        : `rgba(34, 197, 94, ${opacity * 0.7})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    };
+
+    const render = () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      ctx.clearRect(0, 0, width, height);
+
+      // Draw stars (parallax effect based on z)
+      stars.forEach(star => {
+        // Slow drift
+        star.z -= 0.0003;
+        if (star.z <= 0) {
+          star.z = 1;
+          star.x = Math.random() * 2 - 1;
+          star.y = Math.random() * 2 - 1;
+        }
+
+        const scale = 1 / star.z;
+        const screenX = (star.x * scale + 1) * width / 2;
+        const screenY = (star.y * scale + 1) * height / 2;
+        const alpha = (1 - star.z) * 0.6;
+        const size = star.size * scale * 0.5;
+
+        if (screenX > 0 && screenX < width && screenY > 0 && screenY < height) {
+          drawStar(screenX, screenY, Math.min(size, 2), alpha);
+        }
+      });
+
+      // Draw and update geometric shapes
+      shapes.forEach(shape => {
+        shape.x += shape.velocityX / width;
+        shape.y += shape.velocityY / height;
+        shape.rotation += shape.rotationSpeed;
+
+        // Wrap around
+        if (shape.x < -1.5) shape.x = 1.5;
+        if (shape.x > 1.5) shape.x = -1.5;
+        if (shape.y < -1.5) shape.y = 1.5;
+        if (shape.y > 1.5) shape.y = -1.5;
+
+        const screenX = (shape.x + 1) * width / 2;
+        const screenY = (shape.y + 1) * height / 2;
+
+        switch (shape.type) {
+          case 0:
+            drawTriangle(screenX, screenY, shape.size, shape.rotation, shape.opacity);
+            break;
+          case 1:
+            drawSquare(screenX, screenY, shape.size, shape.rotation, shape.opacity);
+            break;
+          case 2:
+            drawHexagon(screenX, screenY, shape.size, shape.rotation, shape.opacity);
+            break;
+          case 3:
+            drawCircle(screenX, screenY, shape.size, shape.opacity);
+            break;
+        }
+      });
+
+      animationRef.current = requestAnimationFrame(render);
+    };
+
+    render();
 
     return () => {
+      window.removeEventListener('resize', handleResize);
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, []);
+  }, [isDark]);
 
-  // Fallback CSS animation for non-WebGPU browsers
   if (!supported) {
-    return (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        overflow: 'hidden',
-        pointerEvents: 'none',
-        zIndex: 0,
-      }}>
-        {Array.from({ length: 12 }, (_, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              width: 40 + Math.random() * 60,
-              height: 40 + Math.random() * 60,
-              border: `2px solid ${isDark ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.1)'}`,
-              borderRadius: i % 3 === 0 ? '50%' : i % 3 === 1 ? '0%' : '30%',
-              animation: `float-shape ${15 + Math.random() * 10}s ease-in-out infinite`,
-              animationDelay: `${-Math.random() * 10}s`,
-              transform: `rotate(${Math.random() * 360}deg)`,
-            }}
-          />
-        ))}
-        <style>{`
-          @keyframes float-shape {
-            0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.1; }
-            25% { transform: translate(30px, -30px) rotate(90deg); opacity: 0.2; }
-            50% { transform: translate(-20px, 20px) rotate(180deg); opacity: 0.15; }
-            75% { transform: translate(40px, 10px) rotate(270deg); opacity: 0.2; }
-          }
-        `}</style>
-      </div>
-    );
+    return null;
   }
 
   return (
