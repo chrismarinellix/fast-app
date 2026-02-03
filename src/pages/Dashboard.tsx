@@ -4,7 +4,7 @@ import {
   Play, RotateCcw, CheckCircle2, PenLine, Flame, Brain, Zap,
   Heart, Sparkles, Clock, History, Share2, Edit3,
   LogOut, TrendingUp, Award, Target, Plus, Timer, Settings,
-  Trash2, Link, Eye, Copy, X, Check, MessageSquare, Users
+  Trash2, Link, Eye, Copy, X, Check, MessageSquare, Users, Bell
 } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,11 +13,12 @@ import {
   getFastingNotes, addFastingNote, canStartFast, updateUserProfile,
   signOut, setFastStartTime, confirmFast,
   getUserShares, deleteShare,
-  getCommunityFasts,
+  getConnectedUsersFasts,
   createShareConnection, getUserConnections, getPendingInvites,
   removeShareConnection,
+  getNotifications, getUnreadNotificationCount, markNotificationRead, markAllNotificationsRead,
   type FastingSession, type FastingNote, type FastShare,
-  type CommunityFast, type ConnectionWithFast, type ShareConnection
+  type ConnectedFast, type ConnectionWithFast, type ShareConnection, type Notification
 } from '../lib/supabase';
 import { redirectToCheckout, FAST_PRICE_ID } from '../lib/stripe';
 
@@ -354,6 +355,9 @@ export function Dashboard() {
   const [hoveredMilestone, setHoveredMilestone] = useState<number | null>(null);
   const [showDiary, setShowDiary] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showAdjustTime, setShowAdjustTime] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -366,8 +370,8 @@ export function Dashboard() {
   const [userShares, setUserShares] = useState<(FastShare & { fast?: FastingSession })[]>([]);
   const [userConnections, setUserConnections] = useState<ConnectionWithFast[]>([]);
   const [pendingInvites, setPendingInvites] = useState<ShareConnection[]>([]);
-  const [communityFasts, setCommunityFasts] = useState<CommunityFast[]>([]);
-  const [hoveredCommunityMilestone, setHoveredCommunityMilestone] = useState<{ fastId: string; hour: number } | null>(null);
+  const [connectedFasts, setConnectedFasts] = useState<ConnectedFast[]>([]);
+  const [hoveredConnectedMilestone, setHoveredConnectedMilestone] = useState<{ fastId: string; hour: number } | null>(null);
   const [showProtocolSelect, setShowProtocolSelect] = useState(false);
   const [adjustHours, setAdjustHours] = useState(0);
   const [showCompletionSummary, setShowCompletionSummary] = useState(false);
@@ -435,6 +439,41 @@ export function Dashboard() {
     loadData();
   }, [user]);
 
+  // Load notifications
+  useEffect(() => {
+    if (!user) return;
+    const loadNotifications = async () => {
+      const [notifs, count] = await Promise.all([
+        getNotifications(user.id),
+        getUnreadNotificationCount(user.id),
+      ]);
+      setNotifications(notifs);
+      setUnreadCount(count);
+    };
+    loadNotifications();
+    // Check for new notifications every minute
+    const interval = setInterval(loadNotifications, 60000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Handle marking notification as read
+  const handleMarkNotificationRead = async (notificationId: string) => {
+    if (!user) return;
+    await markNotificationRead(notificationId, user.id);
+    setNotifications(notifications.map(n =>
+      n.id === notificationId ? { ...n, read: true } : n
+    ));
+    setUnreadCount(Math.max(0, unreadCount - 1));
+  };
+
+  // Handle marking all notifications as read
+  const handleMarkAllRead = async () => {
+    if (!user) return;
+    await markAllNotificationsRead(user.id);
+    setNotifications(notifications.map(n => ({ ...n, read: true })));
+    setUnreadCount(0);
+  };
+
   // Check if long fast needs confirmation (24+ hours, then every 4 hours)
   useEffect(() => {
     if (!currentFast || loading) return;
@@ -471,17 +510,18 @@ export function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Load community fasts
+  // Load connected users' fasts (only users with accepted share connections)
   useEffect(() => {
-    const loadCommunity = async () => {
-      const fasts = await getCommunityFasts();
-      setCommunityFasts(fasts);
+    if (!user) return;
+    const loadConnectedFasts = async () => {
+      const fasts = await getConnectedUsersFasts(user.id);
+      setConnectedFasts(fasts);
     };
-    loadCommunity();
+    loadConnectedFasts();
     // Refresh every 30 seconds
-    const interval = setInterval(loadCommunity, 30000);
+    const interval = setInterval(loadConnectedFasts, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   // Load user shares and connections when history is opened
   useEffect(() => {
@@ -775,6 +815,156 @@ export function Dashboard() {
             </div>
           )}
 
+          {/* Notification bell */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 40,
+                height: 40,
+                background: showNotifications ? '#f5f3ff' : 'transparent',
+                color: showNotifications ? '#8b5cf6' : '#666',
+                border: showNotifications ? '1px solid #8b5cf6' : '1px solid #e5e5e5',
+                borderRadius: 8,
+                cursor: 'pointer',
+                position: 'relative',
+              }}
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: -4,
+                  right: -4,
+                  width: 18,
+                  height: 18,
+                  background: '#ef4444',
+                  borderRadius: '50%',
+                  color: '#fff',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </div>
+              )}
+            </button>
+
+            {/* Notification dropdown */}
+            {showNotifications && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: 8,
+                width: 340,
+                maxHeight: 400,
+                background: '#fff',
+                borderRadius: 16,
+                boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+                border: '1px solid #e5e5e5',
+                overflow: 'hidden',
+                zIndex: 100,
+              }}>
+                <div style={{
+                  padding: '16px 20px',
+                  borderBottom: '1px solid #e5e5e5',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#333' }}>
+                    Notifications
+                  </h3>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={handleMarkAllRead}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#8b5cf6',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+                <div style={{ maxHeight: 320, overflow: 'auto' }}>
+                  {notifications.length === 0 ? (
+                    <div style={{
+                      padding: 40,
+                      textAlign: 'center',
+                      color: '#888',
+                      fontSize: 14,
+                    }}>
+                      No notifications yet
+                    </div>
+                  ) : (
+                    notifications.map(notif => (
+                      <div
+                        key={notif.id}
+                        onClick={() => !notif.read && handleMarkNotificationRead(notif.id)}
+                        style={{
+                          padding: '14px 20px',
+                          borderBottom: '1px solid #f5f5f5',
+                          background: notif.read ? '#fff' : '#faf5ff',
+                          cursor: notif.read ? 'default' : 'pointer',
+                        }}
+                      >
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          marginBottom: 4,
+                        }}>
+                          <span style={{
+                            fontWeight: notif.read ? 500 : 700,
+                            color: '#333',
+                            fontSize: 14,
+                          }}>
+                            {notif.title}
+                          </span>
+                          {!notif.read && (
+                            <span style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              background: '#8b5cf6',
+                              flexShrink: 0,
+                              marginTop: 5,
+                            }} />
+                          )}
+                        </div>
+                        <div style={{
+                          fontSize: 13,
+                          color: '#666',
+                          lineHeight: 1.4,
+                          marginBottom: 6,
+                        }}>
+                          {notif.message}
+                        </div>
+                        <div style={{
+                          fontSize: 11,
+                          color: '#999',
+                        }}>
+                          {format(new Date(notif.created_at), 'MMM d, h:mm a')}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Admin link - only show for admin users */}
           {user?.email && ADMIN_EMAILS.includes(user.email) && (
             <button
@@ -820,12 +1010,26 @@ export function Dashboard() {
       <div className="mobile-padding" style={{ padding: '0 24px 24px', maxWidth: 1000, margin: '0 auto' }}>
         {/* Hero section - centered Fast! with timer */}
         <div style={{
-          background: '#fff',
           borderRadius: 20,
           padding: '40px 32px',
           textAlign: 'center',
           marginBottom: 24,
+          position: 'relative',
+          overflow: 'hidden',
+          background: currentFast
+            ? `linear-gradient(-45deg, ${currentMilestone.color}15, ${nextMilestone?.color || '#22c55e'}10, #fff, ${currentMilestone.color}08)`
+            : 'linear-gradient(-45deg, #22c55e10, #3b82f608, #fff, #22c55e05)',
+          backgroundSize: '400% 400%',
+          animation: 'gradientShift 15s ease infinite',
         }}>
+          <style>{`
+            @keyframes gradientShift {
+              0% { background-position: 0% 50%; }
+              50% { background-position: 100% 50%; }
+              100% { background-position: 0% 50%; }
+            }
+          `}</style>
+
           {/* Big FAST! title */}
           <h1 style={{
             fontSize: 'clamp(80px, 18vw, 140px)',
@@ -1264,8 +1468,8 @@ export function Dashboard() {
                 )}
               </div>
 
-              {/* Community Fasts Section - Shows other users currently fasting */}
-              {communityFasts.filter(f => f.user_id !== user?.id).length > 0 && (
+              {/* Connected Friends Fasting Section - Only shows users with accepted share connections */}
+              {connectedFasts.length > 0 && (
                 <div style={{
                   marginTop: 24,
                   background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
@@ -1282,10 +1486,10 @@ export function Dashboard() {
                     color: '#333',
                   }}>
                     <Users size={18} color="#8b5cf6" />
-                    Fasting Together ({communityFasts.filter(f => f.user_id !== user?.id).length})
+                    Friends Fasting ({connectedFasts.length})
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {communityFasts.filter(f => f.user_id !== user?.id).map(fast => {
+                    {connectedFasts.map(fast => {
                       const startTime = new Date(fast.start_time).getTime();
                       const durationMs = now - startTime;
                       const totalHrs = durationMs / (1000 * 60 * 60);
@@ -1404,12 +1608,12 @@ export function Dashboard() {
                               {FASTING_MILESTONES.filter(m => m.hour > 0 && m.hour <= fast.target_hours).map(m => {
                                 const isPassed = totalHrs >= m.hour;
                                 const isCurrent = milestone.hour === m.hour;
-                                const isHovered = hoveredCommunityMilestone?.fastId === fast.id && hoveredCommunityMilestone?.hour === m.hour;
+                                const isHovered = hoveredConnectedMilestone?.fastId === fast.id && hoveredConnectedMilestone?.hour === m.hour;
                                 return (
                                   <div
                                     key={m.hour}
-                                    onMouseEnter={() => setHoveredCommunityMilestone({ fastId: fast.id, hour: m.hour })}
-                                    onMouseLeave={() => setHoveredCommunityMilestone(null)}
+                                    onMouseEnter={() => setHoveredConnectedMilestone({ fastId: fast.id, hour: m.hour })}
+                                    onMouseLeave={() => setHoveredConnectedMilestone(null)}
                                     style={{
                                       position: 'absolute',
                                       left: `${(m.hour / fast.target_hours) * 100}%`,

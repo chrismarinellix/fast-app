@@ -280,3 +280,32 @@ Supabase PostgreSQL with RLS. Key tables:
 - `fast_shares` - shareable links for fasts
 - `share_groups` - fasting groups
 - `share_group_members` - group memberships
+- `share_connections` - 1-to-1 sharing connections between users
+- `notifications` - in-app notifications from admin/system
+
+### Notifications Table
+```sql
+-- Run this SQL in Supabase SQL Editor to create notifications
+CREATE TABLE notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  type VARCHAR(50) DEFAULT 'admin',  -- admin, system, milestone, reminder, social
+  action_url TEXT,
+  action_label VARCHAR(100),
+  read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own notifications" ON notifications
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own notifications" ON notifications
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE INDEX idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX idx_notifications_read ON notifications(user_id, read);
+```

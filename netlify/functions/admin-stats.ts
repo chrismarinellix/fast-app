@@ -62,6 +62,16 @@ export async function handler(event: any) {
       console.error('Error fetching sessions:', sessionsError);
     }
 
+    // Get all share connections for network visualization
+    const { data: connections, error: connectionsError } = await supabase
+      .from('share_connections')
+      .select('*')
+      .not('accepted_at', 'is', null);
+
+    if (connectionsError) {
+      console.error('Error fetching connections:', connectionsError);
+    }
+
     // Calculate stats
     const now = new Date();
     const totalUsers = profiles?.length || 0;
@@ -91,6 +101,29 @@ export async function handler(event: any) {
       };
     }) || [];
 
+    // Build network data for visualization
+    const networkNodes = profiles?.map(p => {
+      const hasActiveFast = sessions?.some(s => s.user_id === p.id && s.end_time === null);
+      const connectionCount = connections?.filter(c => c.user_a === p.id || c.user_b === p.id).length || 0;
+      return {
+        id: p.id,
+        name: p.name || p.email?.split('@')[0] || 'User',
+        email: p.email,
+        isFasting: hasActiveFast,
+        connectionCount,
+        isPaid: p.paid_until && new Date(p.paid_until) > now,
+      };
+    }) || [];
+
+    const networkEdges = connections?.map(c => ({
+      id: c.id,
+      source: c.user_a,
+      target: c.user_b,
+      sourceLabel: c.display_name_a,
+      targetLabel: c.display_name_b,
+      createdAt: c.accepted_at,
+    })) || [];
+
     return {
       statusCode: 200,
       headers,
@@ -115,6 +148,10 @@ export async function handler(event: any) {
           createdAt: p.created_at,
         })),
         activeFasts: activeFastsList,
+        network: {
+          nodes: networkNodes,
+          edges: networkEdges,
+        },
       }),
     };
   } catch (error: any) {

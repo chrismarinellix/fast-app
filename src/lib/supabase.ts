@@ -959,7 +959,71 @@ export async function deleteShareGroup(groupId: string, userId: string): Promise
   }
 }
 
-// Community fasts - get all active fasts from all users
+// Connected users fasts - ONLY get fasts from users who have accepted share_connections
+export interface ConnectedFast {
+  id: string;
+  user_id: string;
+  user_name: string;
+  start_time: string;
+  target_hours: number;
+  connection_id: string;
+}
+
+export async function getConnectedUsersFasts(userId: string): Promise<ConnectedFast[]> {
+  if (!supabase || !userId) return [];
+
+  try {
+    // First get all accepted connections for this user
+    const { data: connections, error: connError } = await supabase
+      .from('share_connections')
+      .select('*')
+      .or(`user_a.eq.${userId},user_b.eq.${userId}`)
+      .not('accepted_at', 'is', null);
+
+    if (connError || !connections || connections.length === 0) {
+      return [];
+    }
+
+    // Get the other user's ID and display name from each connection
+    const connectedUsers = connections.map(c => ({
+      userId: c.user_a === userId ? c.user_b : c.user_a,
+      displayName: c.user_a === userId ? c.display_name_b : c.display_name_a,
+      connectionId: c.id,
+    })).filter(cu => cu.userId); // Filter out nulls
+
+    if (connectedUsers.length === 0) return [];
+
+    // Get active fasts for connected users only
+    const connectedUserIds = connectedUsers.map(cu => cu.userId);
+    const { data: fasts, error: fastsError } = await supabase
+      .from('fasting_sessions')
+      .select('id, user_id, start_time, target_hours')
+      .in('user_id', connectedUserIds)
+      .is('end_time', null)
+      .order('start_time', { ascending: false });
+
+    if (fastsError || !fasts) return [];
+
+    // Map fasts with connection info
+    return fasts.map(fast => {
+      const connUser = connectedUsers.find(cu => cu.userId === fast.user_id);
+      return {
+        id: fast.id,
+        user_id: fast.user_id,
+        user_name: connUser?.displayName || 'Friend',
+        start_time: fast.start_time,
+        target_hours: fast.target_hours || 24,
+        connection_id: connUser?.connectionId || '',
+      };
+    });
+  } catch (e) {
+    console.error('Error fetching connected users fasts:', e);
+    return [];
+  }
+}
+
+// DEPRECATED: getCommunityFasts - was showing all fasts to all users (privacy issue)
+// Keeping for backwards compatibility but it now returns empty array
 export interface CommunityFast {
   id: string;
   user_id: string;
@@ -970,44 +1034,8 @@ export interface CommunityFast {
 }
 
 export async function getCommunityFasts(): Promise<CommunityFast[]> {
-  if (!supabase) return [];
-
-  try {
-    // Use RPC function to bypass RLS and get user details
-    const { data, error } = await supabase.rpc('get_community_fasts');
-
-    if (error) {
-      console.error('RPC error, falling back to direct query:', error);
-      // Fallback to direct query (won't have names due to RLS)
-      const { data: fasts, error: fastsError } = await supabase
-        .from('fasting_sessions')
-        .select('id, user_id, start_time, target_hours')
-        .is('end_time', null)
-        .order('start_time', { ascending: false });
-
-      if (fastsError) throw fastsError;
-      return (fasts || []).map(fast => ({
-        id: fast.id,
-        user_id: fast.user_id,
-        user_name: 'Faster',
-        user_email: '',
-        start_time: fast.start_time,
-        target_hours: fast.target_hours || 24,
-      }));
-    }
-
-    return (data || []).map((fast: any) => ({
-      id: fast.id,
-      user_id: fast.user_id,
-      user_name: fast.user_name || 'Faster',
-      user_email: fast.user_email || '',
-      start_time: fast.start_time,
-      target_hours: fast.target_hours || 24,
-    }));
-  } catch (e) {
-    console.error('Error fetching community fasts:', e);
-    return [];
-  }
+  console.warn('getCommunityFasts is deprecated - use getConnectedUsersFasts instead');
+  return []; // Return empty - don't expose all users' fasts
 }
 
 // ============ SHARE CONNECTIONS (1-to-1 Reciprocal Sharing) ============
@@ -1377,4 +1405,103 @@ export async function confirmFast(fastId: string): Promise<FastingSession | null
 
   if (error) throw error;
   return data;
+}
+
+// ============ NOTIFICATIONS ============
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: 'admin' | 'system' | 'milestone' | 'reminder' | 'social';
+  action_url?: string;
+  action_label?: string;
+  read: boolean;
+  created_at: string;
+}
+
+// Get unread notifications for a user
+export async function getNotifications(userId: string): Promise<Notification[]> {
+  if (!supabase) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('Error fetching notifications:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (e) {
+    console.error('Error fetching notifications:', e);
+    return [];
+  }
+}
+
+// Get unread notification count
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  if (!supabase) return 0;
+
+  try {
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('read', false);
+
+    if (error) {
+      console.error('Error counting notifications:', error);
+      return 0;
+    }
+
+    return count || 0;
+  } catch (e) {
+    console.error('Error counting notifications:', e);
+    return 0;
+  }
+}
+
+// Mark notification as read
+export async function markNotificationRead(notificationId: string, userId: string): Promise<boolean> {
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', notificationId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('Error marking notification read:', e);
+    return false;
+  }
+}
+
+// Mark all notifications as read
+export async function markAllNotificationsRead(userId: string): Promise<boolean> {
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', userId)
+      .eq('read', false);
+
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('Error marking all notifications read:', e);
+    return false;
+  }
 }
