@@ -1967,189 +1967,262 @@ export function Dashboard() {
                 )}
               </div>
 
-              {/* Connected Friends Fasting Section - Animated Network */}
-              {(connectedFasts.length > 0 || userConnections.length > 0) && (
-                <div style={{
-                  marginTop: 24,
-                  background: isDark ? 'rgba(139, 92, 246, 0.08)' : 'rgba(139, 92, 246, 0.05)',
-                  borderRadius: 16,
-                  padding: 16,
+              {/* Network Section - Glassmorphic */}
+              <div style={{
+                marginTop: 24,
+                background: isDark
+                  ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(59, 130, 246, 0.05))'
+                  : 'linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(59, 130, 246, 0.04))',
+                backdropFilter: 'blur(12px)',
+                borderRadius: 20,
+                padding: 20,
+                border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(139, 92, 246, 0.15)'}`,
+                boxShadow: isDark
+                  ? '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)'
+                  : '0 8px 32px rgba(139, 92, 246, 0.1), inset 0 1px 0 rgba(255,255,255,0.5)',
+              }}>
+                <h3 style={{
+                  margin: '0 0 16px 0',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  color: colors.text,
                 }}>
-                  <h3 style={{
-                    margin: '0 0 12px 0',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    color: colors.text,
-                  }}>
-                    <Users size={14} color="#8b5cf6" />
-                    Network
-                    <span style={{ fontSize: 10, fontWeight: 500, color: colors.textMuted }}>
-                      ({userConnections.length})
-                    </span>
-                  </h3>
-
-                  {/* Animated Network Visualization */}
                   <div style={{
-                    position: 'relative',
-                    height: 80,
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    marginBottom: connectedFasts.length > 0 ? 12 : 0,
                   }}>
-                    {/* CSS animations */}
-                    <style>{`
-                      @keyframes pulse-glow {
-                        0%, 100% { box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); transform: scale(1); }
-                        50% { box-shadow: 0 0 16px rgba(34, 197, 94, 0.6); transform: scale(1.05); }
-                      }
-                      @keyframes pulse-idle {
-                        0%, 100% { opacity: 0.8; transform: scale(1); }
-                        50% { opacity: 1; transform: scale(1.02); }
-                      }
-                      @keyframes dash-flow {
-                        0% { stroke-dashoffset: 20; }
-                        100% { stroke-dashoffset: 0; }
-                      }
-                      @keyframes connection-pulse {
-                        0%, 100% { opacity: 0.3; }
-                        50% { opacity: 0.7; }
-                      }
-                    `}</style>
+                    <Users size={14} color="#fff" />
+                  </div>
+                  Your Network
+                  <span style={{
+                    marginLeft: 'auto',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: colors.textMuted,
+                    background: colors.surfaceHover,
+                    padding: '4px 10px',
+                    borderRadius: 12,
+                  }}>
+                    {userConnections.length} connection{userConnections.length !== 1 ? 's' : ''}
+                  </span>
+                </h3>
 
-                    {/* SVG for connection lines */}
+                {/* Glassmorphic Network Visualization */}
+                <div style={{
+                  position: 'relative',
+                  height: userConnections.length > 0 ? 120 : 100,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.3)',
+                  borderRadius: 16,
+                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`,
+                  overflow: 'hidden',
+                }}>
+                  {/* Animated gradient background */}
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: `radial-gradient(circle at 50% 50%, ${currentFast ? 'rgba(34, 197, 94, 0.15)' : 'rgba(139, 92, 246, 0.1)'} 0%, transparent 70%)`,
+                    animation: 'pulse-bg 3s ease-in-out infinite',
+                  }} />
+
+                  <style>{`
+                    @keyframes pulse-bg {
+                      0%, 100% { opacity: 0.5; transform: scale(1); }
+                      50% { opacity: 1; transform: scale(1.1); }
+                    }
+                    @keyframes float-orb {
+                      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+                      50% { transform: translate(-50%, -50%) scale(1.08); }
+                    }
+                    @keyframes glow-green {
+                      0%, 100% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.4), 0 0 40px rgba(34, 197, 94, 0.2), inset 0 0 20px rgba(255,255,255,0.1); }
+                      50% { box-shadow: 0 0 30px rgba(34, 197, 94, 0.6), 0 0 60px rgba(34, 197, 94, 0.3), inset 0 0 30px rgba(255,255,255,0.2); }
+                    }
+                    @keyframes glow-purple {
+                      0%, 100% { box-shadow: 0 0 15px rgba(139, 92, 246, 0.3), 0 0 30px rgba(139, 92, 246, 0.15), inset 0 0 15px rgba(255,255,255,0.1); }
+                      50% { box-shadow: 0 0 25px rgba(139, 92, 246, 0.5), 0 0 50px rgba(139, 92, 246, 0.25), inset 0 0 25px rgba(255,255,255,0.15); }
+                    }
+                    @keyframes connection-flow {
+                      0% { stroke-dashoffset: 20; opacity: 0.3; }
+                      50% { opacity: 0.8; }
+                      100% { stroke-dashoffset: 0; opacity: 0.3; }
+                    }
+                  `}</style>
+
+                  {/* SVG connection lines */}
+                  {userConnections.length > 0 && (
                     <svg style={{ position: 'absolute', width: '100%', height: '100%', pointerEvents: 'none' }}>
+                      <defs>
+                        <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor={currentFast ? '#22c55e' : '#8b5cf6'} stopOpacity="0.8" />
+                          <stop offset="100%" stopColor={currentFast ? '#16a34a' : '#6366f1'} stopOpacity="0.4" />
+                        </linearGradient>
+                      </defs>
                       {userConnections.slice(0, 4).map((connection, i) => {
                         const isFasting = connectedFasts.some(f => f.user_id === connection.connected_user_id);
-                        const angle = (i - (userConnections.slice(0, 4).length - 1) / 2) * 50;
-                        const centerX = 50;
-                        const centerY = 50;
-                        const endX = centerX + Math.sin(angle * Math.PI / 180) * 35;
-                        const endY = centerY - Math.cos(angle * Math.PI / 180) * 20 + 10;
+                        const angle = (i - (userConnections.slice(0, 4).length - 1) / 2) * 45;
+                        const endX = 50 + Math.sin(angle * Math.PI / 180) * 35;
+                        const endY = 50 - Math.cos(angle * Math.PI / 180) * 25 + 5;
                         return (
                           <line
                             key={connection.connection_id}
-                            x1={`${centerX}%`}
-                            y1={`${centerY}%`}
+                            x1="50%"
+                            y1="50%"
                             x2={`${endX}%`}
                             y2={`${endY}%`}
-                            stroke={isFasting ? '#22c55e' : (isDark ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.2)')}
-                            strokeWidth={isFasting ? 2 : 1}
-                            strokeDasharray={isFasting ? '4 4' : 'none'}
-                            style={{
-                              animation: isFasting ? 'dash-flow 1s linear infinite' : 'connection-pulse 2s ease-in-out infinite',
-                            }}
+                            stroke="url(#lineGradient)"
+                            strokeWidth={isFasting ? 3 : 2}
+                            strokeDasharray="8 4"
+                            strokeLinecap="round"
+                            style={{ animation: 'connection-flow 2s linear infinite' }}
                           />
                         );
                       })}
                     </svg>
+                  )}
 
-                    {/* You node - center */}
+                  {/* Center orb - You */}
+                  <div style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}>
                     <div style={{
-                      position: 'absolute',
-                      left: '50%',
-                      top: '50%',
-                      transform: 'translate(-50%, -50%)',
+                      width: 52,
+                      height: 52,
+                      borderRadius: '50%',
+                      background: currentFast
+                        ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.9))'
+                        : 'linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(99, 102, 241, 0.9))',
+                      backdropFilter: 'blur(8px)',
+                      border: '2px solid rgba(255,255,255,0.3)',
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
-                      gap: 2,
-                      zIndex: 2,
+                      justifyContent: 'center',
+                      color: '#fff',
+                      fontWeight: 700,
+                      fontSize: 14,
+                      animation: currentFast ? 'float-orb 2s ease-in-out infinite, glow-green 2s ease-in-out infinite' : 'float-orb 3s ease-in-out infinite, glow-purple 3s ease-in-out infinite',
                     }}>
-                      <div style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '50%',
-                        background: currentFast ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#fff',
-                        fontWeight: 700,
-                        fontSize: 12,
-                        animation: currentFast ? 'pulse-glow 2s ease-in-out infinite' : 'pulse-idle 3s ease-in-out infinite',
-                      }}>
-                        You
-                      </div>
-                      {currentFast && (
-                        <span style={{ fontSize: 8, color: '#22c55e', fontWeight: 600, textTransform: 'uppercase' }}>Fasting</span>
-                      )}
+                      You
                     </div>
-
-                    {/* Friend nodes - positioned around */}
-                    {userConnections.slice(0, 4).map((connection, i) => {
-                      const isFasting = connectedFasts.some(f => f.user_id === connection.connected_user_id);
-                      const angle = (i - (userConnections.slice(0, 4).length - 1) / 2) * 50;
-                      const xPercent = 50 + Math.sin(angle * Math.PI / 180) * 35;
-                      const yPercent = 50 - Math.cos(angle * Math.PI / 180) * 20 + 10;
-
-                      return (
-                        <div
-                          key={connection.connection_id}
-                          style={{
-                            position: 'absolute',
-                            left: `${xPercent}%`,
-                            top: `${yPercent}%`,
-                            transform: 'translate(-50%, -50%)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: 2,
-                            zIndex: 1,
-                          }}
-                        >
-                          <div style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: '50%',
-                            background: isFasting
-                              ? 'linear-gradient(135deg, #22c55e, #16a34a)'
-                              : (isDark ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.15)'),
-                            border: isFasting ? 'none' : `2px solid ${isDark ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.2)'}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: isFasting ? '#fff' : colors.textMuted,
-                            fontWeight: 600,
-                            fontSize: 11,
-                            animation: isFasting ? 'pulse-glow 2s ease-in-out infinite' : 'pulse-idle 4s ease-in-out infinite',
-                            animationDelay: `${i * 0.3}s`,
-                          }}>
-                            {(connection.display_name || 'U')[0].toUpperCase()}
-                          </div>
-                          <span style={{
-                            fontSize: 8,
-                            color: isFasting ? '#22c55e' : colors.textMuted,
-                            fontWeight: isFasting ? 600 : 400,
-                            maxWidth: 50,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}>
-                            {connection.display_name || 'Friend'}
-                          </span>
-                        </div>
-                      );
-                    })}
-
-                    {userConnections.length > 4 && (
-                      <div style={{
-                        position: 'absolute',
-                        right: 8,
-                        bottom: 4,
-                        fontSize: 10,
-                        color: colors.textMuted,
-                        padding: '2px 6px',
-                        background: colors.surfaceHover,
-                        borderRadius: 6,
+                    {currentFast && (
+                      <span style={{
+                        fontSize: 9,
+                        color: '#22c55e',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        textShadow: '0 0 10px rgba(34, 197, 94, 0.5)',
                       }}>
-                        +{userConnections.length - 4}
-                      </div>
+                        Fasting
+                      </span>
                     )}
                   </div>
+
+                  {/* Friend orbs */}
+                  {userConnections.slice(0, 4).map((connection, i) => {
+                    const isFasting = connectedFasts.some(f => f.user_id === connection.connected_user_id);
+                    const angle = (i - (userConnections.slice(0, 4).length - 1) / 2) * 45;
+                    const xPercent = 50 + Math.sin(angle * Math.PI / 180) * 35;
+                    const yPercent = 50 - Math.cos(angle * Math.PI / 180) * 25 + 5;
+
+                    return (
+                      <div
+                        key={connection.connection_id}
+                        style={{
+                          position: 'absolute',
+                          left: `${xPercent}%`,
+                          top: `${yPercent}%`,
+                          transform: 'translate(-50%, -50%)',
+                          zIndex: 1,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 3,
+                        }}
+                      >
+                        <div style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: '50%',
+                          background: isFasting
+                            ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.85), rgba(22, 163, 74, 0.85))'
+                            : `linear-gradient(135deg, ${isDark ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.25)'}, ${isDark ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.15)'})`,
+                          backdropFilter: 'blur(8px)',
+                          border: `2px solid ${isFasting ? 'rgba(255,255,255,0.3)' : 'rgba(139, 92, 246, 0.3)'}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: isFasting ? '#fff' : colors.textMuted,
+                          fontWeight: 600,
+                          fontSize: 13,
+                        }}>
+                          {(connection.display_name || 'U')[0].toUpperCase()}
+                        </div>
+                        <span style={{
+                          fontSize: 9,
+                          color: isFasting ? '#22c55e' : colors.textMuted,
+                          fontWeight: isFasting ? 600 : 400,
+                          maxWidth: 55,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          textShadow: isFasting ? '0 0 8px rgba(34, 197, 94, 0.5)' : 'none',
+                        }}>
+                          {connection.display_name || 'Friend'}
+                        </span>
+                      </div>
+                    );
+                  })}
+
+                  {/* Empty state - just You orb */}
+                  {userConnections.length === 0 && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 12,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      fontSize: 11,
+                      color: colors.textMuted,
+                      textAlign: 'center',
+                    }}>
+                      Connect with friends to fast together
+                    </div>
+                  )}
+
+                  {userConnections.length > 4 && (
+                    <div style={{
+                      position: 'absolute',
+                      right: 12,
+                      bottom: 12,
+                      fontSize: 11,
+                      color: colors.textMuted,
+                      padding: '4px 10px',
+                      background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                      borderRadius: 8,
+                      backdropFilter: 'blur(4px)',
+                    }}>
+                      +{userConnections.length - 4} more
+                    </div>
+                  )}
+                </div>
 
                   {/* Compact Friends Fasting List */}
                   {connectedFasts.length > 0 && (
@@ -2256,7 +2329,6 @@ export function Dashboard() {
                     </div>
                   )}
                 </div>
-              )}
 
               {/* History Panel - shows inline */}
               {showHistory && (
