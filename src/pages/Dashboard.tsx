@@ -23,6 +23,7 @@ import {
   type ConnectedFast, type ConnectionWithFast, type ShareConnection, type Notification
 } from '../lib/supabase';
 import { redirectToCheckout, FAST_PRICE_ID } from '../lib/stripe';
+import { WebGPUBackground } from '../components/WebGPUBackground';
 
 // Free hours before payment required
 const FREE_HOURS = 10;
@@ -997,7 +998,10 @@ export function Dashboard() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: colors.background, color: colors.text, transition: 'background 0.3s, color 0.3s' }}>
+    <div style={{ minHeight: '100vh', background: colors.background, color: colors.text, transition: 'background 0.3s, color 0.3s', position: 'relative' }}>
+      {/* WebGPU Animated Background */}
+      <WebGPUBackground />
+
       {/* Header */}
       <header style={{
         padding: '16px 24px',
