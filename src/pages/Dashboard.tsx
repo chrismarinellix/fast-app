@@ -717,30 +717,31 @@ export function Dashboard() {
     return (
       <div style={{
         minHeight: '100vh',
-        background: '#fafafa',
+        background: colors.background,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 16,
+        color: colors.text,
       }}>
         <Flame size={48} color="#22c55e" />
         <div style={{ fontSize: 24, fontWeight: 700 }}>Fast!</div>
-        <div style={{ fontSize: 14, color: '#666' }}>
+        <div style={{ fontSize: 14, color: colors.textSecondary }}>
           {loading ? 'Loading...' : !user ? 'No user session' : 'Loading profile...'}
         </div>
         {loadingTooLong && (
           <div style={{ textAlign: 'center', marginTop: 8 }}>
-            <div style={{ fontSize: 13, color: '#999', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, color: colors.textMuted, marginBottom: 12 }}>
               Taking longer than expected...
             </div>
             <button
               onClick={() => window.location.reload()}
               style={{
                 padding: '10px 20px',
-                background: '#fff',
-                color: '#333',
-                border: '1px solid #ddd',
+                background: colors.surface,
+                color: colors.text,
+                border: `1px solid ${colors.border}`,
                 borderRadius: 8,
                 cursor: 'pointer',
                 marginRight: 8,
@@ -938,8 +939,8 @@ export function Dashboard() {
                         onClick={() => !notif.read && handleMarkNotificationRead(notif.id)}
                         style={{
                           padding: '14px 20px',
-                          borderBottom: '1px solid #f5f5f5',
-                          background: notif.read ? '#fff' : '#faf5ff',
+                          borderBottom: `1px solid ${colors.border}`,
+                          background: notif.read ? colors.surface : (isDark ? '#2d2640' : '#faf5ff'),
                           cursor: notif.read ? 'default' : 'pointer',
                         }}
                       >
@@ -951,7 +952,7 @@ export function Dashboard() {
                         }}>
                           <span style={{
                             fontWeight: notif.read ? 500 : 700,
-                            color: '#333',
+                            color: colors.text,
                             fontSize: 14,
                           }}>
                             {notif.title}
@@ -969,7 +970,7 @@ export function Dashboard() {
                         </div>
                         <div style={{
                           fontSize: 13,
-                          color: '#666',
+                          color: colors.textSecondary,
                           lineHeight: 1.4,
                           marginBottom: 6,
                         }}>
@@ -977,7 +978,7 @@ export function Dashboard() {
                         </div>
                         <div style={{
                           fontSize: 11,
-                          color: '#999',
+                          color: colors.textMuted,
                         }}>
                           {format(new Date(notif.created_at), 'MMM d, h:mm a')}
                         </div>
@@ -999,8 +1000,8 @@ export function Dashboard() {
                 gap: 6,
                 padding: '8px 14px',
                 background: 'transparent',
-                color: '#666',
-                border: '1px solid #e5e5e5',
+                color: colors.textSecondary,
+                border: `1px solid ${colors.border}`,
                 borderRadius: 8,
                 fontSize: 13,
                 cursor: 'pointer',
@@ -1018,8 +1019,8 @@ export function Dashboard() {
               gap: 6,
               padding: '8px 14px',
               background: 'transparent',
-              color: '#666',
-              border: '1px solid #e5e5e5',
+              color: colors.textSecondary,
+              border: `1px solid ${colors.border}`,
               borderRadius: 8,
               fontSize: 13,
               cursor: 'pointer',
@@ -1137,25 +1138,25 @@ export function Dashboard() {
                   flexWrap: 'wrap',
                 }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                    <div style={{ fontSize: 12, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
                       Started
                     </div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: '#333' }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: colors.text }}>
                       {format(new Date(fastStartTime), 'h:mm a')}
                     </div>
-                    <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                    <div style={{ fontSize: 12, color: colors.textMuted }}>
                       {format(new Date(fastStartTime), 'EEE, MMM d')}
                     </div>
                   </div>
-                  <div style={{ width: 1, background: 'rgba(0,0,0,0.1)', alignSelf: 'stretch' }} />
+                  <div style={{ width: 1, background: colors.border, alignSelf: 'stretch' }} />
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                    <div style={{ fontSize: 12, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
                       {isComplete ? 'Completed' : `${targetHours}h Goal`}
                     </div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: isComplete ? '#16a34a' : '#333' }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: isComplete ? '#16a34a' : colors.text }}>
                       {format(new Date(fastStartTime + fastDuration), 'h:mm a')}
                     </div>
-                    <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                    <div style={{ fontSize: 12, color: colors.textMuted }}>
                       {format(new Date(fastStartTime + fastDuration), 'EEE, MMM d')}
                     </div>
                   </div>
@@ -1179,7 +1180,7 @@ export function Dashboard() {
                   <div style={{
                     width: '100%',
                     height: 8,
-                    background: 'rgba(0,0,0,0.1)',
+                    background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
                     borderRadius: 4,
                   }}>
                     <div style={{
@@ -1214,8 +1215,8 @@ export function Dashboard() {
                           width: isCurrent ? 22 : isHovered ? 18 : 14,
                           height: isCurrent ? 22 : isHovered ? 18 : 14,
                           borderRadius: '50%',
-                          background: isPassed ? m.color : '#e5e5e5',
-                          border: isCurrent ? '3px solid #fff' : '2px solid #fff',
+                          background: isPassed ? m.color : (isDark ? '#444' : '#e5e5e5'),
+                          border: isCurrent ? `3px solid ${colors.surface}` : `2px solid ${colors.surface}`,
                           boxShadow: isPassed ? `0 2px 8px ${m.color}50` : '0 1px 3px rgba(0,0,0,0.1)',
                           transition: 'all 0.2s',
                         }} />
@@ -1228,13 +1229,13 @@ export function Dashboard() {
                             transform: 'translateX(-50%)',
                             marginBottom: 12,
                             padding: '14px 18px',
-                            background: '#fff',
-                            color: '#333',
+                            background: colors.surface,
+                            color: colors.text,
                             borderRadius: 12,
                             fontSize: 13,
                             width: 260,
-                            boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
-                            border: '1px solid rgba(0,0,0,0.08)',
+                            boxShadow: isDark ? '0 8px 30px rgba(0,0,0,0.4)' : '0 8px 30px rgba(0,0,0,0.15)',
+                            border: `1px solid ${colors.border}`,
                             zIndex: 1000,
                           }}>
                             <div style={{
@@ -1247,8 +1248,8 @@ export function Dashboard() {
                             }}>
                               Hour {m.hour} {isCurrent ? '• CURRENT' : isPassed ? '• ACHIEVED' : '• UPCOMING'}
                             </div>
-                            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 16, color: '#1a1a1a' }}>{m.title}</div>
-                            <div style={{ fontSize: 13, color: '#555', lineHeight: 1.6, marginBottom: 10 }}>{m.detail}</div>
+                            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 16, color: colors.text }}>{m.title}</div>
+                            <div style={{ fontSize: 13, color: colors.textSecondary, lineHeight: 1.6, marginBottom: 10 }}>{m.detail}</div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                               {m.benefits.map(b => (
                                 <span key={b} style={{
@@ -1273,7 +1274,7 @@ export function Dashboard() {
                               height: 0,
                               borderLeft: '8px solid transparent',
                               borderRight: '8px solid transparent',
-                              borderTop: '8px solid #fff',
+                              borderTop: `8px solid ${colors.surface}`,
                             }} />
                           </div>
                         )}
@@ -1335,7 +1336,7 @@ export function Dashboard() {
                       <div style={{ fontSize: 15, fontWeight: 700, color: currentProtocol.color, marginBottom: 4 }}>
                         {currentProtocol.name}
                       </div>
-                      <div style={{ fontSize: 13, color: '#555', marginBottom: 8, lineHeight: 1.5 }}>
+                      <div style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 8, lineHeight: 1.5 }}>
                         {currentProtocol.description}
                       </div>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
@@ -1343,16 +1344,16 @@ export function Dashboard() {
                           <span key={i} style={{
                             fontSize: 11,
                             padding: '3px 8px',
-                            background: '#fff',
-                            color: '#666',
+                            background: colors.surfaceHover,
+                            color: colors.textSecondary,
                             borderRadius: 6,
-                            border: '1px solid rgba(0,0,0,0.06)',
+                            border: `1px solid ${colors.border}`,
                           }}>
                             {benefit}
                           </span>
                         ))}
                       </div>
-                      <div style={{ fontSize: 11, color: '#888' }}>
+                      <div style={{ fontSize: 11, color: colors.textMuted }}>
                         Popular with: {currentProtocol.popularWith}
                       </div>
                     </div>
@@ -1369,9 +1370,9 @@ export function Dashboard() {
                     alignItems: 'center',
                     gap: 8,
                     padding: '12px 20px',
-                    background: showDiary ? 'rgba(139, 92, 246, 0.15)' : '#fff',
-                    color: showDiary ? '#7c3aed' : '#333',
-                    border: showDiary ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid rgba(0,0,0,0.1)',
+                    background: showDiary ? 'rgba(139, 92, 246, 0.15)' : colors.surface,
+                    color: showDiary ? '#7c3aed' : colors.text,
+                    border: showDiary ? '1px solid rgba(139, 92, 246, 0.4)' : `1px solid ${colors.border}`,
                     borderRadius: 10,
                     fontSize: 14,
                     fontWeight: 600,
@@ -1388,9 +1389,9 @@ export function Dashboard() {
                     alignItems: 'center',
                     gap: 8,
                     padding: '12px 20px',
-                    background: showHistory ? 'rgba(0,0,0,0.06)' : '#fff',
-                    color: '#333',
-                    border: '1px solid rgba(0,0,0,0.1)',
+                    background: showHistory ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)') : colors.surface,
+                    color: colors.text,
+                    border: `1px solid ${colors.border}`,
                     borderRadius: 10,
                     fontSize: 14,
                     fontWeight: 600,
@@ -1412,7 +1413,7 @@ export function Dashboard() {
                     alignItems: 'center',
                     gap: 8,
                     padding: '12px 20px',
-                    background: '#fff',
+                    background: colors.surface,
                     color: '#8b5cf6',
                     border: '1px solid rgba(139, 92, 246, 0.3)',
                     borderRadius: 10,
@@ -1431,7 +1432,7 @@ export function Dashboard() {
                     alignItems: 'center',
                     gap: 8,
                     padding: '12px 20px',
-                    background: showAdjustTime ? 'rgba(234, 179, 8, 0.15)' : '#fff',
+                    background: showAdjustTime ? 'rgba(234, 179, 8, 0.15)' : colors.surface,
                     color: '#ca8a04',
                     border: '1px solid rgba(234, 179, 8, 0.3)',
                     borderRadius: 10,
@@ -1450,7 +1451,7 @@ export function Dashboard() {
                     alignItems: 'center',
                     gap: 8,
                     padding: '12px 20px',
-                    background: isComplete ? 'linear-gradient(135deg, #22c55e, #16a34a)' : '#fff',
+                    background: isComplete ? 'linear-gradient(135deg, #22c55e, #16a34a)' : colors.surface,
                     color: isComplete ? '#fff' : '#dc2626',
                     border: isComplete ? 'none' : '1px solid rgba(220, 38, 38, 0.3)',
                     borderRadius: 10,
@@ -1484,9 +1485,9 @@ export function Dashboard() {
                       alignItems: 'center',
                       gap: 8,
                       padding: '12px 20px',
-                      background: '#fff',
-                      color: '#666',
-                      border: '1px solid rgba(0,0,0,0.1)',
+                      background: colors.surface,
+                      color: colors.textSecondary,
+                      border: `1px solid ${colors.border}`,
                       borderRadius: 10,
                       fontSize: 14,
                       fontWeight: 600,
@@ -1502,7 +1503,7 @@ export function Dashboard() {
               {(connectedFasts.length > 0 || userConnections.length > 0) && (
                 <div style={{
                   marginTop: 24,
-                  background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+                  background: isDark ? 'linear-gradient(135deg, #2d2640 0%, #1f1a2e 100%)' : 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
                   borderRadius: 16,
                   padding: 16,
                 }}>
@@ -1513,18 +1514,18 @@ export function Dashboard() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
-                    color: '#333',
+                    color: colors.text,
                   }}>
                     <Users size={16} color="#8b5cf6" />
                     Your Network
-                    <span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>
+                    <span style={{ fontSize: 11, fontWeight: 500, color: colors.textMuted }}>
                       ({userConnections.length} connection{userConnections.length !== 1 ? 's' : ''})
                     </span>
                   </h3>
 
                   {/* Mini Network Visualization */}
                   <div style={{
-                    background: '#fff',
+                    background: colors.surface,
                     borderRadius: 12,
                     padding: 12,
                     marginBottom: connectedFasts.length > 0 ? 12 : 0,
@@ -1572,7 +1573,7 @@ export function Dashboard() {
                             <div style={{
                               width: 20,
                               height: 2,
-                              background: isFasting ? '#22c55e' : '#e5e5e5',
+                              background: isFasting ? '#22c55e' : colors.border,
                             }} />
                             {/* Friend node */}
                             <div style={{
@@ -1585,21 +1586,21 @@ export function Dashboard() {
                                 width: 32,
                                 height: 32,
                                 borderRadius: '50%',
-                                background: isFasting ? 'linear-gradient(135deg, #22c55e, #16a34a)' : '#f3f4f6',
+                                background: isFasting ? 'linear-gradient(135deg, #22c55e, #16a34a)' : colors.surfaceHover,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                color: isFasting ? '#fff' : '#888',
+                                color: isFasting ? '#fff' : colors.textMuted,
                                 fontWeight: 600,
                                 fontSize: 11,
-                                border: isFasting ? 'none' : '2px solid #e5e5e5',
+                                border: isFasting ? 'none' : `2px solid ${colors.border}`,
                                 boxShadow: isFasting ? '0 0 8px rgba(34, 197, 94, 0.4)' : 'none',
                               }}>
                                 {(connection.display_name || 'U')[0].toUpperCase()}
                               </div>
                               <span style={{
                                 fontSize: 9,
-                                color: isFasting ? '#16a34a' : '#888',
+                                color: isFasting ? '#16a34a' : colors.textMuted,
                                 fontWeight: isFasting ? 600 : 400,
                                 maxWidth: 50,
                                 overflow: 'hidden',
@@ -1615,9 +1616,9 @@ export function Dashboard() {
                       {userConnections.length > 6 && (
                         <div style={{
                           fontSize: 11,
-                          color: '#888',
+                          color: colors.textMuted,
                           padding: '4px 8px',
-                          background: '#f3f4f6',
+                          background: colors.surfaceHover,
                           borderRadius: 8,
                         }}>
                           +{userConnections.length - 6} more
@@ -1646,7 +1647,7 @@ export function Dashboard() {
                               display: 'flex',
                               alignItems: 'center',
                               gap: 10,
-                              background: '#fff',
+                              background: colors.surface,
                               borderRadius: 10,
                               padding: '10px 12px',
                               borderLeft: `3px solid ${milestone.color}`,
@@ -1661,7 +1662,7 @@ export function Dashboard() {
                               <div style={{
                                 fontSize: 13,
                                 fontWeight: 600,
-                                color: '#333',
+                                color: colors.text,
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
@@ -1690,7 +1691,7 @@ export function Dashboard() {
                             <div style={{ flex: 1, minWidth: 50 }}>
                               <div style={{
                                 height: 6,
-                                background: 'rgba(0,0,0,0.08)',
+                                background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
                                 borderRadius: 3,
                                 overflow: 'hidden',
                               }}>
@@ -1707,7 +1708,7 @@ export function Dashboard() {
                             {/* Goal */}
                             <div style={{
                               fontSize: 11,
-                              color: '#888',
+                              color: colors.textMuted,
                               minWidth: 30,
                               textAlign: 'right',
                             }}>
