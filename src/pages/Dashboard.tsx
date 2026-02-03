@@ -2504,7 +2504,7 @@ export function Dashboard() {
         {/* Current milestone detail */}
         {currentFast && (
           <div style={{
-            background: '#fff',
+            background: colors.surface,
             border: `1px solid ${currentMilestone.color}30`,
             borderRadius: 16,
             padding: 20,
@@ -2524,7 +2524,7 @@ export function Dashboard() {
                 <MilestoneIcon icon={currentMilestone.icon} size={24} />
               </div>
               <div>
-                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                <div style={{ fontSize: 11, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                   Current Stage • Hour {currentMilestone.hour}
                 </div>
                 <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: currentMilestone.color }}>
@@ -2533,7 +2533,7 @@ export function Dashboard() {
               </div>
             </div>
 
-            <p style={{ margin: '0 0 16px', fontSize: 14, color: '#555', lineHeight: 1.6 }}>
+            <p style={{ margin: '0 0 16px', fontSize: 14, color: colors.textSecondary, lineHeight: 1.6 }}>
               {currentMilestone.detail}
             </p>
 
@@ -2541,7 +2541,7 @@ export function Dashboard() {
               {currentMilestone.benefits.map((benefit, i) => (
                 <span key={i} style={{
                   padding: '6px 12px',
-                  background: `${currentMilestone.color}12`,
+                  background: `${currentMilestone.color}15`,
                   borderRadius: 20,
                   fontSize: 12,
                   color: currentMilestone.color,
@@ -2557,8 +2557,8 @@ export function Dashboard() {
         {/* Next milestone preview */}
         {currentFast && nextMilestone && !isComplete && (
           <div style={{
-            background: '#fff',
-            border: '1px solid rgba(0,0,0,0.06)',
+            background: colors.surface,
+            border: `1px solid ${colors.border}`,
             borderRadius: 12,
             padding: 16,
             marginBottom: 24,
@@ -2578,15 +2578,15 @@ export function Dashboard() {
                   <MilestoneIcon icon={nextMilestone.icon} size={18} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>Next milestone</div>
+                  <div style={{ fontSize: 11, color: colors.textMuted }}>Next milestone</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: nextMilestone.color }}>{nextMilestone.title}</div>
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#333' }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: colors.text }}>
                   {Math.ceil(nextMilestone.hour - elapsedHours)}h
                 </div>
-                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>to go</div>
+                <div style={{ fontSize: 11, color: colors.textMuted }}>to go</div>
               </div>
             </div>
           </div>
@@ -3247,8 +3247,8 @@ export function Dashboard() {
       {/* Always-visible Fasting Timeline at Bottom */}
       {currentFast && (
         <div style={{
-          background: '#fff',
-          borderTop: '1px solid #e5e5e5',
+          background: colors.surface,
+          borderTop: `1px solid ${colors.border}`,
           padding: '32px 24px 48px',
         }}>
           <div style={{ maxWidth: 1000, margin: '0 auto' }}>
@@ -3257,7 +3257,7 @@ export function Dashboard() {
               fontSize: 20,
               fontWeight: 700,
               textAlign: 'center',
-              color: '#333',
+              color: colors.text,
             }}>
               Your Fasting Journey
             </h3>
@@ -3273,10 +3273,10 @@ export function Dashboard() {
                     display: 'flex',
                     gap: 16,
                     padding: '16px 20px',
-                    background: isCurrent ? `${m.color}08` : isPassed ? '#fafafa' : '#fff',
+                    background: isCurrent ? `${m.color}15` : isPassed ? colors.surfaceHover : colors.surface,
                     borderRadius: 14,
-                    border: isCurrent ? `2px solid ${m.color}` : '1px solid rgba(0,0,0,0.06)',
-                    opacity: isPassed && !isCurrent ? 0.6 : 1,
+                    border: isCurrent ? `2px solid ${m.color}` : `1px solid ${colors.border}`,
+                    opacity: isPassed && !isCurrent ? 0.7 : 1,
                     transition: 'all 0.3s ease',
                   }}>
                     {/* Icon */}
@@ -3284,7 +3284,7 @@ export function Dashboard() {
                       width: 48,
                       height: 48,
                       borderRadius: 12,
-                      background: isPassed || isCurrent ? m.color : '#e5e5e5',
+                      background: isPassed || isCurrent ? m.color : (isDark ? '#444' : '#e5e5e5'),
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -3338,16 +3338,16 @@ export function Dashboard() {
                         {!isPassed && !isCurrent && (
                           <span style={{
                             fontSize: 11,
-                            color: '#999',
+                            color: colors.textMuted,
                           }}>
                             in {Math.ceil(hoursUntil)}h
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, color: '#333' }}>
+                      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, color: colors.text }}>
                         {m.title}
                       </div>
-                      <div style={{ fontSize: 14, color: '#666', lineHeight: 1.5 }}>
+                      <div style={{ fontSize: 14, color: colors.textSecondary, lineHeight: 1.5 }}>
                         {m.detail}
                       </div>
                       {/* Benefits tags */}
@@ -3355,10 +3355,10 @@ export function Dashboard() {
                         {m.benefits.map((benefit, i) => (
                           <span key={i} style={{
                             padding: '4px 10px',
-                            background: isPassed || isCurrent ? `${m.color}12` : 'rgba(0,0,0,0.04)',
+                            background: isPassed || isCurrent ? `${m.color}15` : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'),
                             borderRadius: 16,
                             fontSize: 11,
-                            color: isPassed || isCurrent ? m.color : '#888',
+                            color: isPassed || isCurrent ? m.color : colors.textMuted,
                             fontWeight: 500,
                           }}>
                             {benefit}
