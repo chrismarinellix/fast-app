@@ -883,7 +883,7 @@ export function Dashboard() {
     await addFastingNote({
       fasting_id: currentFast.id,
       hour_mark: elapsedHours,
-      mood: diaryMood,
+      mood: diaryMood || 'okay',
       energy_level: diaryEnergy,
       hunger_level: diaryHunger,
       note: fullNote,
