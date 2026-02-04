@@ -22,7 +22,7 @@ interface CheckinAction {
   userId: string;
   email: string;
   name?: string;
-  type: 'long_fast' | 'milestone' | 'inactivity' | 'encouragement';
+  type: 'long_fast' | 'milestone' | 'inactivity' | 'encouragement' | 'welcome' | 'first_fast';
   title: string;
   message: string;
   fastHours?: number;
@@ -192,7 +192,80 @@ export async function handler(event: any) {
       }
     }
 
-    // 2. Check for inactive users (haven't fasted in 7+ days)
+    // 2. Welcome messages for new signups (within last 4 hours)
+    const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+    const { data: newUsers } = await supabase
+      .from('profiles')
+      .select('id, email, name, created_at')
+      .gte('created_at', fourHoursAgo.toISOString());
+
+    if (newUsers) {
+      for (const user of newUsers) {
+        // Check if we already sent a welcome notification
+        const { data: existing } = await supabase
+          .from('notifications')
+          .select('id')
+          .eq('user_id', user.id)
+          .like('title', '%Welcome%')
+          .limit(1);
+
+        if (!existing || existing.length === 0) {
+          actions.push({
+            userId: user.id,
+            email: user.email,
+            name: user.name,
+            type: 'welcome',
+            title: `Welcome to Fast! 👋`,
+            message: `We're excited to have you on your fasting journey! Start your first fast whenever you're ready - even a 12-16 hour fast can kickstart amazing health benefits. Tap the big green button to begin!`,
+          });
+        }
+      }
+    }
+
+    // 3. Congratulate first fast completion
+    const { data: recentCompletedFasts } = await supabase
+      .from('fasting_sessions')
+      .select(`
+        id, user_id, start_time, end_time, target_hours,
+        profiles:user_id (id, email, name, fasts_completed)
+      `)
+      .not('end_time', 'is', null)
+      .gte('end_time', fourHoursAgo.toISOString());
+
+    if (recentCompletedFasts) {
+      for (const fast of recentCompletedFasts) {
+        const profile = fast.profiles as any;
+
+        // Only for users who just completed their FIRST fast
+        if (profile?.fasts_completed === 1) {
+          // Check if we already sent a first-fast notification
+          const { data: existing } = await supabase
+            .from('notifications')
+            .select('id')
+            .eq('user_id', fast.user_id)
+            .like('title', '%first fast%')
+            .limit(1);
+
+          if (!existing || existing.length === 0) {
+            const hours = fast.end_time && fast.start_time
+              ? Math.round((new Date(fast.end_time).getTime() - new Date(fast.start_time).getTime()) / (1000 * 60 * 60))
+              : 0;
+
+            actions.push({
+              userId: fast.user_id,
+              email: profile.email,
+              name: profile.name,
+              type: 'first_fast',
+              title: `🎉 You completed your first fast!`,
+              message: `Congratulations! You just finished ${hours} hours of fasting. Your body has already started experiencing the benefits - improved insulin sensitivity, cellular cleanup, and metabolic flexibility. Keep it up!`,
+              fastHours: hours,
+            });
+          }
+        }
+      }
+    }
+
+    // 4. Check for inactive users (haven't fasted in 7+ days)
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const { data: inactiveUsers } = await supabase
       .from('profiles')
@@ -228,22 +301,28 @@ export async function handler(event: any) {
       }
     }
 
-    // 3. Execute actions
+    // 5. Execute actions
     let inAppSent = 0;
     let emailsSent = 0;
 
     for (const action of actions) {
+      // Map action type to notification type
+      const notificationType =
+        action.type === 'milestone' || action.type === 'first_fast' ? 'milestone' :
+        action.type === 'welcome' ? 'system' : 'reminder';
+
       // Always send in-app notification
       const inAppSuccess = await sendInAppNotification(
         action.userId,
         action.title,
         action.message,
-        action.type === 'milestone' ? 'milestone' : 'reminder'
+        notificationType
       );
       if (inAppSuccess) inAppSent++;
 
-      // Send email for important notifications (milestones and long fasts)
-      if (action.email && (action.type === 'milestone' || action.type === 'long_fast')) {
+      // Send email for important notifications (milestones, long fasts, welcome, first fast)
+      const emailTypes = ['milestone', 'long_fast', 'welcome', 'first_fast'];
+      if (action.email && emailTypes.includes(action.type)) {
         const emailSuccess = await sendEmail(action.email, action.title, action.message);
         if (emailSuccess) emailsSent++;
       }

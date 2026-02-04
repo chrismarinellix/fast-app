@@ -7,7 +7,7 @@ import {
   Trash2, Link, Eye, Copy, X, Check, MessageSquare, Users, Bell,
   Sun, Moon
 } from 'lucide-react';
-import { format, isToday, isYesterday, subDays, startOfDay, differenceInDays } from 'date-fns';
+import { format, isToday, isYesterday, startOfDay, differenceInDays } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme, themeColors } from '../contexts/ThemeContext';
 import {
@@ -398,29 +398,66 @@ function calculateXP(pastFasts: FastingSession[]): { totalXP: number; level: typ
   return { totalXP, level, progress, unlockedAchievements };
 }
 
-// Build contribution data for the chart (last 365 days)
-function buildContributionData(pastFasts: FastingSession[]): { date: Date; hours: number; level: number }[] {
-  const data: { date: Date; hours: number; level: number }[] = [];
+// Build contribution data for the chart (full calendar year: Jan 1 to Dec 31)
+interface ContributionDay {
+  date: Date;
+  hours: number;
+  level: number;
+  isFuture: boolean;
+  isPadding: boolean;
+  fastId?: string;
+  hasNotes?: boolean;
+}
+
+function buildContributionData(pastFasts: FastingSession[], notes: FastingNote[]): ContributionDay[] {
+  const data: ContributionDay[] = [];
   const today = startOfDay(new Date());
+  const currentYear = today.getFullYear();
 
-  for (let i = 364; i >= 0; i--) {
-    const date = subDays(today, i);
-    const dayStart = date.getTime();
+  // Start from Jan 1 of current year
+  const yearStart = new Date(currentYear, 0, 1);
+  // End at Dec 31 of current year
+  const yearEnd = new Date(currentYear, 11, 31);
+
+  // Add padding days at the start to align with day of week (0 = Sunday)
+  const startDayOfWeek = yearStart.getDay();
+  for (let i = 0; i < startDayOfWeek; i++) {
+    data.push({ date: new Date(0), hours: 0, level: 0, isFuture: false, isPadding: true });
+  }
+
+  // Calculate total days in the year
+  const totalDays = Math.ceil((yearEnd.getTime() - yearStart.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+
+  // Create a map of fastId to notes for quick lookup
+  const fastHasNotes = new Set(notes.map(n => n.fasting_id));
+
+  for (let i = 0; i < totalDays; i++) {
+    const date = new Date(yearStart);
+    date.setDate(yearStart.getDate() + i);
+    const dayStart = startOfDay(date).getTime();
     const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+    const isFuture = date > today;
 
-    // Calculate hours fasted on this day
+    // Calculate hours fasted on this day (0 for future dates)
     let hoursOnDay = 0;
-    pastFasts.forEach(fast => {
-      const fastStart = new Date(fast.start_time).getTime();
-      const fastEnd = fast.end_time ? new Date(fast.end_time).getTime() : Date.now();
+    let fastId: string | undefined;
+    let hasNotes = false;
 
-      // Check if fast overlaps with this day
-      if (fastStart < dayEnd && fastEnd > dayStart) {
-        const overlapStart = Math.max(fastStart, dayStart);
-        const overlapEnd = Math.min(fastEnd, dayEnd);
-        hoursOnDay += (overlapEnd - overlapStart) / (1000 * 60 * 60);
-      }
-    });
+    if (!isFuture) {
+      pastFasts.forEach(fast => {
+        const fastStart = new Date(fast.start_time).getTime();
+        const fastEnd = fast.end_time ? new Date(fast.end_time).getTime() : Date.now();
+
+        // Check if fast overlaps with this day
+        if (fastStart < dayEnd && fastEnd > dayStart) {
+          const overlapStart = Math.max(fastStart, dayStart);
+          const overlapEnd = Math.min(fastEnd, dayEnd);
+          hoursOnDay += (overlapEnd - overlapStart) / (1000 * 60 * 60);
+          fastId = fast.id;
+          hasNotes = fastHasNotes.has(fast.id);
+        }
+      });
+    }
 
     // Level based on hours: 0=none, 1=<8h, 2=8-12h, 3=12-16h, 4=16-20h, 5=20-24h, 6=24h+
     let level = 0;
@@ -433,7 +470,14 @@ function buildContributionData(pastFasts: FastingSession[]): { date: Date; hours
       else level = 6;
     }
 
-    data.push({ date, hours: hoursOnDay, level });
+    data.push({ date, hours: hoursOnDay, level, isFuture, isPadding: false, fastId, hasNotes });
+  }
+
+  // Add padding days at the end to complete the last week (make it 7 days)
+  const endDayOfWeek = yearEnd.getDay();
+  const paddingEnd = 6 - endDayOfWeek; // Days needed to reach Saturday
+  for (let i = 0; i < paddingEnd; i++) {
+    data.push({ date: new Date(0), hours: 0, level: 0, isFuture: true, isPadding: true });
   }
 
   return data;
@@ -601,13 +645,13 @@ export function Dashboard() {
 
   // Gamification data - computed from pastFasts
   const xpData = pastFasts.length > 0 ? calculateXP(pastFasts) : { totalXP: 0, level: XP_LEVELS[0], progress: 0, unlockedAchievements: [] };
-  const contributionData = pastFasts.length > 0 ? buildContributionData(pastFasts) : [];
+  const contributionData = pastFasts.length > 0 ? buildContributionData(pastFasts, notes) : [];
 
   // Diary form
   const [diaryNote, setDiaryNote] = useState('');
-  const [diaryMood, setDiaryMood] = useState<FastingNote['mood']>('okay');
-  const [diaryEnergy, setDiaryEnergy] = useState(3);
-  const [diaryHunger, setDiaryHunger] = useState(3);
+  const [diaryMood, setDiaryMood] = useState<FastingNote['mood'] | null>(null);
+  const [diaryEnergy, setDiaryEnergy] = useState(0);
+  const [diaryHunger, setDiaryHunger] = useState(0);
   const [selectedFeelings, setSelectedFeelings] = useState<string[]>([]);
   const [savingNote, setSavingNote] = useState(false);
 
@@ -1013,6 +1057,8 @@ export function Dashboard() {
         alignItems: 'center',
         justifyContent: 'space-between',
         transition: 'background 0.3s, border-color 0.3s',
+        position: 'relative',
+        zIndex: 10,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Flame size={28} color="#22c55e" />
@@ -1275,7 +1321,7 @@ export function Dashboard() {
       </header>
 
       {/* Main Content */}
-      <div className="mobile-padding" style={{ padding: '0 24px 24px', maxWidth: 1000, margin: '0 auto' }}>
+      <div className="mobile-padding" style={{ padding: '24px 24px 24px', maxWidth: 1000, margin: '0 auto', position: 'relative', zIndex: 1 }}>
 
         {/* Gamification Stats Section */}
         {pastFasts.length > 0 && (
@@ -1295,7 +1341,7 @@ export function Dashboard() {
                 marginBottom: 8,
               }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary }}>
-                  365 Days
+                  {new Date().getFullYear()}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: colors.textMuted }}>
                   <span>Less</span>
@@ -1311,23 +1357,27 @@ export function Dashboard() {
                 </div>
               </div>
 
-              {/* GitHub-style contribution grid - 365 days = 52 weeks */}
+              {/* GitHub-style contribution grid - calendar year */}
               <div style={{
                 display: 'flex',
-                gap: 2,
-                overflowX: 'auto',
+                justifyContent: 'space-between',
+                gap: 1,
                 paddingBottom: 4,
-                position: 'relative',
+                width: '100%',
               }}>
                 {Array.from({ length: 53 }, (_, weekIndex) => {
                   const weekData = contributionData.slice(weekIndex * 7, (weekIndex + 1) * 7);
+                  // Pad the week to always have 7 days for uniform rendering
+                  while (weekData.length < 7) {
+                    weekData.push({ date: new Date(0), hours: 0, level: 0, isFuture: true, isPadding: true });
+                  }
                   return (
-                    <div key={weekIndex} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <div key={weekIndex} style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 }}>
                       {weekData.map((day, dayIndex) => (
                         <div
                           key={dayIndex}
                           onClick={(e) => {
-                            if (day.hours > 0) {
+                            if (!day.isPadding && !day.isFuture) {
                               const rect = e.currentTarget.getBoundingClientRect();
                               setHoveredContributionDay({
                                 date: day.date,
@@ -1338,22 +1388,44 @@ export function Dashboard() {
                             }
                           }}
                           style={{
-                            width: 8,
-                            height: 8,
+                            width: '100%',
+                            aspectRatio: '1',
+                            maxHeight: 8,
                             borderRadius: 2,
-                            background: day.level === 0
-                              ? (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)')
-                              : CONTRIBUTION_COLORS[day.level as keyof typeof CONTRIBUTION_COLORS],
-                            cursor: day.hours > 0 ? 'pointer' : 'default',
-                            transition: 'transform 0.1s',
+                            background: day.isPadding
+                              ? 'transparent'
+                              : day.isFuture
+                                ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)')
+                                : day.level === 0
+                                  ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')
+                                  : CONTRIBUTION_COLORS[day.level as keyof typeof CONTRIBUTION_COLORS],
+                            border: 'none',
+                            cursor: day.isPadding || day.isFuture ? 'default' : 'pointer',
+                            transition: 'transform 0.1s, box-shadow 0.1s',
+                            opacity: day.isFuture ? 0.7 : 1,
+                            visibility: day.isPadding ? 'hidden' : 'visible',
                           }}
                           onMouseEnter={(e) => {
-                            if (day.hours > 0) e.currentTarget.style.transform = 'scale(1.5)';
+                            if (!day.isPadding && !day.isFuture) {
+                              e.currentTarget.style.transform = 'scale(1.5)';
+                              if (day.level > 0) {
+                                e.currentTarget.style.boxShadow = `0 0 4px ${CONTRIBUTION_COLORS[day.level as keyof typeof CONTRIBUTION_COLORS]}`;
+                              }
+                              // Show tooltip on hover
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setHoveredContributionDay({
+                                date: day.date,
+                                hours: day.hours,
+                                x: rect.left - 10,
+                                y: rect.bottom + 2,
+                              });
+                            }
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.transform = 'scale(1)';
+                            e.currentTarget.style.boxShadow = 'none';
+                            // Don't close immediately - let popup handle it
                           }}
-                          title={day.hours > 0 ? `${format(day.date, 'MMM d')}: ${day.hours.toFixed(1)}h - Click for details` : ''}
                         />
                       ))}
                     </div>
@@ -1374,6 +1446,7 @@ export function Dashboard() {
 
                 return (
                   <div
+                    onMouseLeave={() => setHoveredContributionDay(null)}
                     style={{
                       position: 'fixed',
                       left: Math.min(hoveredContributionDay.x, window.innerWidth - 280),
@@ -1381,7 +1454,9 @@ export function Dashboard() {
                       width: 260,
                       background: colors.surface,
                       borderRadius: 12,
-                      padding: 16,
+                      padding: '20px 16px 16px 16px',
+                      marginTop: -8,
+                      paddingTop: 24,
                       boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
                       border: `1px solid ${colors.border}`,
                       zIndex: 1000,
@@ -1508,7 +1583,7 @@ export function Dashboard() {
           textAlign: 'center',
           marginBottom: 24,
           position: 'relative',
-          overflow: 'hidden',
+          overflow: 'visible',
           background: isDark
             ? (currentFast
               ? `linear-gradient(-45deg, ${currentMilestone.color}20, ${nextMilestone?.color || '#22c55e'}15, ${colors.surface}, ${currentMilestone.color}10)`
@@ -1601,30 +1676,31 @@ export function Dashboard() {
                 <div style={{
                   display: 'flex',
                   justifyContent: 'center',
-                  gap: 24,
+                  gap: 32,
                   marginBottom: 24,
                   flexWrap: 'wrap',
+                  padding: '0 16px',
                 }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                  <div style={{ textAlign: 'center', minWidth: 100 }}>
+                    <div style={{ fontSize: 11, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
                       Started
                     </div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: colors.text }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: colors.text, whiteSpace: 'nowrap' }}>
                       {format(new Date(fastStartTime), 'h:mm a')}
                     </div>
-                    <div style={{ fontSize: 12, color: colors.textMuted }}>
+                    <div style={{ fontSize: 11, color: colors.textMuted, whiteSpace: 'nowrap' }}>
                       {format(new Date(fastStartTime), 'EEE, MMM d')}
                     </div>
                   </div>
-                  <div style={{ width: 1, background: colors.border, alignSelf: 'stretch' }} />
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                  <div style={{ width: 1, background: colors.border, alignSelf: 'stretch', minHeight: 40 }} />
+                  <div style={{ textAlign: 'center', minWidth: 100 }}>
+                    <div style={{ fontSize: 11, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, whiteSpace: 'nowrap' }}>
                       {isComplete ? 'Completed' : `${targetHours}h Goal`}
                     </div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: isComplete ? '#16a34a' : colors.text }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: isComplete ? '#16a34a' : colors.text, whiteSpace: 'nowrap' }}>
                       {format(new Date(fastStartTime + fastDuration), 'h:mm a')}
                     </div>
-                    <div style={{ fontSize: 12, color: colors.textMuted }}>
+                    <div style={{ fontSize: 11, color: colors.textMuted, whiteSpace: 'nowrap' }}>
                       {format(new Date(fastStartTime + fastDuration), 'EEE, MMM d')}
                     </div>
                   </div>
@@ -2018,14 +2094,14 @@ export function Dashboard() {
                 {/* Glassmorphic Network Visualization */}
                 <div style={{
                   position: 'relative',
-                  height: userConnections.length > 0 ? 120 : 100,
+                  height: userConnections.length > 0 ? 110 : 90,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   background: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.3)',
-                  borderRadius: 16,
+                  borderRadius: 12,
                   border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`,
-                  overflow: 'hidden',
+                  overflow: 'visible',
                 }}>
                   {/* Animated gradient background */}
                   <div style={{
@@ -2101,11 +2177,11 @@ export function Dashboard() {
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 4,
+                    gap: 2,
                   }}>
                     <div style={{
-                      width: 52,
-                      height: 52,
+                      width: 38,
+                      height: 38,
                       borderRadius: '50%',
                       background: currentFast
                         ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.9))'
@@ -2117,18 +2193,18 @@ export function Dashboard() {
                       justifyContent: 'center',
                       color: '#fff',
                       fontWeight: 700,
-                      fontSize: 14,
+                      fontSize: 11,
                       animation: currentFast ? 'float-orb 2s ease-in-out infinite, glow-green 2s ease-in-out infinite' : 'float-orb 3s ease-in-out infinite, glow-purple 3s ease-in-out infinite',
                     }}>
                       You
                     </div>
                     {currentFast && (
                       <span style={{
-                        fontSize: 9,
+                        fontSize: 8,
                         color: '#22c55e',
                         fontWeight: 700,
                         textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
+                        letterSpacing: '0.03em',
                         textShadow: '0 0 10px rgba(34, 197, 94, 0.5)',
                       }}>
                         Fasting
@@ -2155,32 +2231,32 @@ export function Dashboard() {
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
-                          gap: 3,
+                          gap: 2,
                         }}
                       >
                         <div style={{
-                          width: 40,
-                          height: 40,
+                          width: 32,
+                          height: 32,
                           borderRadius: '50%',
                           background: isFasting
                             ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.85), rgba(22, 163, 74, 0.85))'
                             : `linear-gradient(135deg, ${isDark ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.25)'}, ${isDark ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.15)'})`,
                           backdropFilter: 'blur(8px)',
-                          border: `2px solid ${isFasting ? 'rgba(255,255,255,0.3)' : 'rgba(139, 92, 246, 0.3)'}`,
+                          border: `1.5px solid ${isFasting ? 'rgba(255,255,255,0.3)' : 'rgba(139, 92, 246, 0.3)'}`,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           color: isFasting ? '#fff' : colors.textMuted,
                           fontWeight: 600,
-                          fontSize: 13,
+                          fontSize: 11,
                         }}>
                           {(connection.display_name || 'U')[0].toUpperCase()}
                         </div>
                         <span style={{
-                          fontSize: 9,
+                          fontSize: 8,
                           color: isFasting ? '#22c55e' : colors.textMuted,
                           fontWeight: isFasting ? 600 : 400,
-                          maxWidth: 55,
+                          maxWidth: 50,
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -3072,222 +3148,194 @@ export function Dashboard() {
           >
             <div style={{
               background: colors.surface,
-              borderRadius: 24,
-              padding: 28,
-              maxWidth: 540,
+              borderRadius: 16,
+              padding: 20,
+              maxWidth: 420,
               width: '100%',
               maxHeight: '90vh',
               overflowY: 'auto',
               position: 'relative',
               border: `1px solid ${colors.border}`,
-              boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
             }}>
               <button
                 onClick={() => setShowDiary(false)}
                 style={{
                   position: 'absolute',
-                  top: 16,
-                  right: 16,
-                  width: 36,
-                  height: 36,
+                  top: 12,
+                  right: 12,
+                  width: 28,
+                  height: 28,
                   background: colors.surfaceHover,
                   border: 'none',
-                  borderRadius: 8,
+                  borderRadius: 6,
                   cursor: 'pointer',
-                  fontSize: 18,
+                  fontSize: 14,
                   color: colors.textMuted,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 ✕
               </button>
 
-              {/* Journal Header */}
-              <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                <div style={{ fontSize: 40, marginBottom: 8 }}>📝</div>
-                <h3 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: colors.text }}>
-                  Journal Entry
-                </h3>
-                <div style={{ fontSize: 13, color: colors.textSecondary }}>
-                  Hour {Math.floor(elapsedHours)} of your fast
-                </div>
-                <div style={{
-                  marginTop: 12,
-                  padding: '8px 16px',
-                  background: isDark ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.1)',
-                  borderRadius: 20,
-                  display: 'inline-block',
-                  fontSize: 12,
-                  color: '#8b5cf6',
-                  fontWeight: 500,
-                }}>
-                  Recording your feelings helps you understand your body better
+              {/* Journal Header - Compact */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div style={{ fontSize: 22 }}>📝</div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: colors.text }}>
+                    Journal Entry
+                  </h3>
+                  <div style={{ fontSize: 11, color: colors.textMuted }}>
+                    Hour {Math.floor(elapsedHours)} of your fast
+                  </div>
                 </div>
               </div>
 
-            {/* Overall Mood selector */}
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Overall Mood</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {MOODS.map(mood => (
-                  <button
-                    key={mood.value}
-                    onClick={() => setDiaryMood(mood.value)}
-                    style={{
-                      padding: '10px 18px',
-                      background: diaryMood === mood.value ? mood.color : '#f5f5f5',
-                      color: diaryMood === mood.value ? '#fff' : '#333',
-                      border: diaryMood === mood.value ? 'none' : '1px solid rgba(0,0,0,0.08)',
-                      borderRadius: 24,
-                      fontSize: 14,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    <span style={{ fontSize: 18 }}>{mood.emoji}</span>
-                    <span>{mood.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Energy & Hunger sliders */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
-              <div>
-                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                  Energy: {diaryEnergy}/5
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {[1,2,3,4,5].map(n => (
+            {/* Compact row: Mood + Energy/Hunger */}
+            <div style={{ display: 'flex', gap: 16, marginBottom: 12, alignItems: 'flex-start' }}>
+              {/* Mood */}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 9, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Mood</div>
+                <div style={{ display: 'flex', gap: 3 }}>
+                  {MOODS.map(mood => (
                     <button
-                      key={n}
-                      onClick={() => setDiaryEnergy(n)}
+                      key={mood.value}
+                      onClick={() => setDiaryMood(mood.value)}
                       style={{
-                        width: 40,
-                        height: 40,
-                        background: n <= diaryEnergy ? '#eab308' : '#f0f0f0',
-                        border: 'none',
-                        borderRadius: 10,
-                        color: n <= diaryEnergy ? '#fff' : '#999',
-                        fontWeight: 600,
+                        width: 28,
+                        height: 28,
+                        padding: 0,
+                        background: diaryMood === mood.value ? mood.color : (isDark ? 'rgba(255,255,255,0.05)' : '#f5f5f5'),
+                        border: diaryMood === mood.value ? 'none' : `1px solid ${colors.border}`,
+                        borderRadius: 6,
+                        fontSize: 14,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        transition: 'all 0.15s',
                       }}
+                      title={mood.label}
                     >
-                      <Zap size={18} />
+                      {mood.emoji}
                     </button>
                   ))}
                 </div>
               </div>
+              {/* Energy */}
               <div>
-                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                  Hunger: {diaryHunger}/5
+                <div style={{ fontSize: 9, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+                  Energy {diaryEnergy > 0 && <span style={{ color: '#eab308' }}>{diaryEnergy}</span>}
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 2 }}>
                   {[1,2,3,4,5].map(n => (
                     <button
                       key={n}
-                      onClick={() => setDiaryHunger(n)}
+                      onClick={() => setDiaryEnergy(diaryEnergy === n ? 0 : n)}
                       style={{
-                        width: 40,
-                        height: 40,
-                        background: n <= diaryHunger ? '#ef4444' : '#f0f0f0',
+                        width: 18,
+                        height: 18,
+                        background: n <= diaryEnergy ? '#eab308' : (isDark ? 'rgba(255,255,255,0.08)' : '#e5e5e5'),
                         border: 'none',
-                        borderRadius: 10,
-                        color: n <= diaryHunger ? '#fff' : '#999',
-                        fontWeight: 700,
+                        borderRadius: 3,
                         cursor: 'pointer',
-                        fontSize: 14,
+                        transition: 'all 0.1s',
                       }}
-                    >
-                      {n}
-                    </button>
+                    />
+                  ))}
+                </div>
+              </div>
+              {/* Hunger */}
+              <div>
+                <div style={{ fontSize: 9, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+                  Hunger {diaryHunger > 0 && <span style={{ color: '#ef4444' }}>{diaryHunger}</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {[1,2,3,4,5].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setDiaryHunger(diaryHunger === n ? 0 : n)}
+                      style={{
+                        width: 18,
+                        height: 18,
+                        background: n <= diaryHunger ? '#ef4444' : (isDark ? 'rgba(255,255,255,0.08)' : '#e5e5e5'),
+                        border: 'none',
+                        borderRadius: 3,
+                        cursor: 'pointer',
+                        transition: 'all 0.1s',
+                      }}
+                    />
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Feeling selectors by category */}
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                What are you experiencing? <span style={{ opacity: 0.6 }}>(tap all that apply)</span>
+            {/* Compact chip-based feelings */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 9, color: colors.textMuted, marginBottom: 6, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+                How are you feeling? <span style={{ opacity: 0.6, fontWeight: 400 }}>tap to select</span>
               </div>
-              {Object.entries(FEELING_OPTIONS).map(([categoryId, category]) => (
-                <div key={categoryId} style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 8 }}>{category.label}</div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {category.options.map(option => {
-                      const isSelected = selectedFeelings.includes(option.id);
-                      return (
-                        <button
-                          key={option.id}
-                          onClick={() => toggleFeeling(option.id)}
-                          style={{
-                            padding: '8px 14px',
-                            background: isSelected ? 'rgba(139, 92, 246, 0.15)' : '#f5f5f5',
-                            color: isSelected ? '#7c3aed' : '#555',
-                            border: isSelected ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid rgba(0,0,0,0.06)',
-                            borderRadius: 20,
-                            fontSize: 13,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            transition: 'all 0.15s',
-                          }}
-                        >
-                          <span>{option.emoji}</span>
-                          <span>{option.label}</span>
-                        </button>
-                      );
-                    })}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {Object.entries(FEELING_OPTIONS).map(([categoryId, category]) => (
+                  <div key={categoryId}>
+                    <div style={{ fontSize: 8, color: colors.textMuted, marginBottom: 3, textTransform: 'uppercase', opacity: 0.7 }}>
+                      {category.label}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {category.options.map(option => {
+                        const isSelected = selectedFeelings.includes(option.id);
+                        return (
+                          <button
+                            key={option.id}
+                            onClick={() => toggleFeeling(option.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              padding: '4px 8px',
+                              background: isSelected
+                                ? (isDark ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.15)')
+                                : (isDark ? 'rgba(255,255,255,0.05)' : '#f3f3f3'),
+                              border: isSelected ? '1px solid #8b5cf6' : `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+                              borderRadius: 12,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                              fontSize: 11,
+                              color: isSelected ? '#8b5cf6' : colors.text,
+                              fontWeight: isSelected ? 500 : 400,
+                            }}
+                          >
+                            <span style={{ fontSize: 10 }}>{option.emoji}</span>
+                            <span>{option.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
-            {/* Selected feelings summary */}
-            {selectedFeelings.length > 0 && (
-              <div style={{
-                padding: 12,
-                background: 'rgba(139, 92, 246, 0.08)',
-                borderRadius: 10,
-                marginBottom: 16,
-                fontSize: 13,
-                color: '#555',
-              }}>
-                <strong>Selected:</strong> {selectedFeelings.map(id => {
-                  for (const category of Object.values(FEELING_OPTIONS)) {
-                    const opt = category.options.find(o => o.id === id);
-                    if (opt) return `${opt.emoji} ${opt.label}`;
-                  }
-                  return id;
-                }).join(', ')}
-              </div>
-            )}
-
             {/* Optional additional note */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                Additional notes <span style={{ opacity: 0.6 }}>(optional)</span>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 9, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+                Notes <span style={{ opacity: 0.6, fontWeight: 400 }}>(optional)</span>
               </div>
               <textarea
                 value={diaryNote}
                 onChange={(e) => setDiaryNote(e.target.value)}
-                placeholder="Any other thoughts or observations..."
+                placeholder="Any other thoughts..."
                 style={{
                   width: '100%',
-                  minHeight: 70,
-                  padding: 14,
-                  background: '#f8f8f8',
-                  border: '1px solid rgba(0,0,0,0.08)',
-                  borderRadius: 12,
-                  color: '#333',
-                  fontSize: 14,
+                  minHeight: 50,
+                  padding: 10,
+                  background: isDark ? 'rgba(255,255,255,0.05)' : '#f5f5f5',
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: 8,
+                  color: colors.text,
+                  fontSize: 13,
                   resize: 'vertical',
                 }}
               />
@@ -3295,17 +3343,22 @@ export function Dashboard() {
 
             <button
               onClick={handleAddNote}
-              disabled={(selectedFeelings.length === 0 && !diaryNote.trim()) || savingNote}
+              disabled={(selectedFeelings.length === 0 && !diaryNote.trim() && !diaryMood && diaryEnergy === 0 && diaryHunger === 0) || savingNote}
               style={{
-                padding: '14px 28px',
-                background: (selectedFeelings.length > 0 || diaryNote.trim()) ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : '#e5e5e5',
-                color: (selectedFeelings.length > 0 || diaryNote.trim()) ? '#fff' : '#999',
+                width: '100%',
+                padding: '12px 20px',
+                background: (selectedFeelings.length > 0 || diaryNote.trim() || diaryMood || diaryEnergy > 0 || diaryHunger > 0)
+                  ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)'
+                  : (isDark ? 'rgba(255,255,255,0.1)' : '#e5e5e5'),
+                color: (selectedFeelings.length > 0 || diaryNote.trim() || diaryMood || diaryEnergy > 0 || diaryHunger > 0) ? '#fff' : colors.textMuted,
                 border: 'none',
-                borderRadius: 12,
-                fontSize: 15,
-                fontWeight: 700,
-                cursor: (selectedFeelings.length > 0 || diaryNote.trim()) ? 'pointer' : 'not-allowed',
-                boxShadow: (selectedFeelings.length > 0 || diaryNote.trim()) ? '0 4px 20px rgba(139, 92, 246, 0.25)' : 'none',
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: (selectedFeelings.length > 0 || diaryNote.trim() || diaryMood || diaryEnergy > 0 || diaryHunger > 0) ? 'pointer' : 'not-allowed',
+                boxShadow: (selectedFeelings.length > 0 || diaryNote.trim() || diaryMood || diaryEnergy > 0 || diaryHunger > 0)
+                  ? '0 4px 16px rgba(139, 92, 246, 0.25)'
+                  : 'none',
               }}
             >
               {savingNote ? 'Saving...' : 'Save Entry'}

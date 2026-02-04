@@ -12,11 +12,29 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* iOS safe area CSS variables */
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+}
+
+html {
+  /* Safe area insets are handled at page level for more control */
+  height: 100%;
 }
 
 body {
   margin: 0;
   min-width: 320px;
+  min-height: 100%;
+  /* Prevent overscroll bounce on iOS */
+  overscroll-behavior: none;
+  /* Smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  /* Prevent text size adjustment on orientation change */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 a {
@@ -35,14 +53,35 @@ p {
 button {
   font-family: inherit;
   cursor: pointer;
+  /* Minimum touch target for accessibility (Apple HIG) */
+  min-height: 44px;
+  /* Prevent double-tap zoom on buttons */
+  touch-action: manipulation;
+}
+
+/* Opt-out for small icon buttons */
+button.icon-button {
+  min-height: auto;
 }
 
 input, textarea {
   font-family: inherit;
+  /* Prevent iOS zoom on focus for inputs smaller than 16px */
+  font-size: 16px;
+  /* Minimum touch target */
+  min-height: 44px;
+  /* Prevent double-tap zoom */
+  touch-action: manipulation;
 }
 
 input:focus, textarea:focus, button:focus {
   outline: none;
+}
+
+/* Prevent iOS zoom on select elements */
+select {
+  font-size: 16px;
+  min-height: 44px;
 }
 
 /* Responsive utilities */
@@ -144,11 +183,29 @@ input:focus, textarea:focus, button:focus {
   }
 
   .timer-display {
-    gap: 16px !important;
+    gap: 12px !important;
+    flex-direction: column !important;
+    padding: 0 4px !important;
+  }
+
+  .timer-separator {
+    display: none !important;
   }
 
   .timer-value {
-    font-size: 28px !important;
+    font-size: 36px !important;
+  }
+}
+
+/* Small mobile screens */
+@media (max-width: 480px) {
+  .timer-display {
+    gap: 16px !important;
+    padding: 0 8px !important;
+  }
+
+  .timer-value {
+    font-size: clamp(28px, 7vw, 40px) !important;
   }
 }
 
@@ -160,4 +217,51 @@ input:focus, textarea:focus, button:focus {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* iOS/Capacitor specific styles */
+@supports (padding: env(safe-area-inset-top)) {
+  /* Ensure content is visible in safe areas */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-area-right {
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Prevent pull-to-refresh on mobile */
+html, body {
+  overscroll-behavior-y: contain;
+}
+
+/* Hide scrollbars on iOS for cleaner look while maintaining scrollability */
+.hide-scrollbar {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Improve tap highlighting on mobile */
+a, button {
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Disable user selection on interactive elements for native feel */
+button, a {
+  -webkit-user-select: none;
+  user-select: none;
 }

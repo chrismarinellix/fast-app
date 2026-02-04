@@ -1097,135 +1097,6 @@ export function Admin() {
           </div>
         </div>
 
-        {/* Message Templates */}
-        <div style={{
-          marginTop: 24,
-          background: colors.surface,
-          borderRadius: 16,
-          padding: 24,
-          border: `1px solid ${colors.border}`,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-        }}>
-          <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: colors.text, display: 'flex', alignItems: 'center', gap: 8 }}>
-            💬 Quick Message Templates
-          </h2>
-          <div style={{ display: 'grid', gap: 12 }}>
-            {[
-              {
-                title: "Welcome! 👋",
-                message: "Welcome to Fast! We're excited to have you on your fasting journey. Start your first fast whenever you're ready - even a 12-16 hour fast can kickstart amazing health benefits!",
-                type: 'admin' as const,
-                audience: 'New users (0 fasts)',
-                color: '#22c55e',
-              },
-              {
-                title: "You're doing amazing! 🔥",
-                message: "Just wanted to check in - your fasting consistency is impressive! Keep it up. Remember, every fast is building better metabolic health, improving insulin sensitivity, and supporting cellular repair.",
-                type: 'admin' as const,
-                audience: 'Active users (3+ fasts)',
-                color: '#f97316',
-              },
-              {
-                title: "We miss you! 💪",
-                message: "It's been a while since your last fast. Ready to get back on track? Even a short 16-hour fast can reignite your metabolism and boost your energy. Your body remembers the benefits!",
-                type: 'reminder' as const,
-                audience: 'Inactive users (7+ days)',
-                color: '#8b5cf6',
-              },
-              {
-                title: "Milestone Celebration! 🎉",
-                message: "Congratulations on reaching this fasting milestone! Your dedication is paying off. At this stage, your body is experiencing deep autophagy, enhanced growth hormone, and powerful cellular renewal.",
-                type: 'admin' as const,
-                audience: '24h+ fasters',
-                color: '#eab308',
-              },
-              {
-                title: "Stay hydrated! 💧",
-                message: "Friendly reminder: hydration is key during your fast! Water, black coffee, and plain tea are your friends. Keep going strong - you've got this!",
-                type: 'reminder' as const,
-                audience: 'Currently fasting',
-                color: '#3b82f6',
-              },
-              {
-                title: "Thank you! ❤️",
-                message: "Thank you for being part of the Fast! community. Your commitment to health is inspiring. We're constantly improving the app based on feedback from users like you!",
-                type: 'admin' as const,
-                audience: 'Paid subscribers',
-                color: '#ec4899',
-              },
-            ].map((template, i) => (
-              <div
-                key={i}
-                style={{
-                  background: '#f9fafb',
-                  borderRadius: 12,
-                  padding: 16,
-                  borderLeft: `4px solid ${template.color}`,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 16,
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, color: '#333', marginBottom: 4 }}>{template.title}</div>
-                  <div style={{ fontSize: 13, color: '#666', marginBottom: 8, lineHeight: 1.5 }}>{template.message}</div>
-                  <div style={{ fontSize: 11, color: template.color, fontWeight: 600 }}>
-                    Audience: {template.audience}
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    // Filter users based on audience
-                    let targetUsers: string[] = [];
-                    if (template.audience.includes('New users')) {
-                      targetUsers = users.filter(u => u.fastsCompleted === 0).map(u => u.id);
-                    } else if (template.audience.includes('Active users')) {
-                      targetUsers = users.filter(u => u.fastsCompleted >= 3).map(u => u.id);
-                    } else if (template.audience.includes('Inactive')) {
-                      targetUsers = users.filter(u => !activeFasts.some(f => f.userId === u.id)).map(u => u.id);
-                    } else if (template.audience.includes('24h+')) {
-                      targetUsers = activeFasts.filter(f => {
-                        const hours = (Date.now() - new Date(f.startTime).getTime()) / (1000 * 60 * 60);
-                        return hours >= 24;
-                      }).map(f => f.userId);
-                    } else if (template.audience.includes('Currently fasting')) {
-                      targetUsers = activeFasts.map(f => f.userId);
-                    } else if (template.audience.includes('Paid')) {
-                      targetUsers = users.filter(u => u.paidUntil && new Date(u.paidUntil) > new Date()).map(u => u.id);
-                    } else {
-                      targetUsers = users.map(u => u.id);
-                    }
-
-                    if (targetUsers.length === 0) {
-                      alert('No users match this audience criteria');
-                      return;
-                    }
-
-                    setNotificationTargets(targetUsers);
-                    setNotificationTitle(template.title);
-                    setNotificationMessage(template.message);
-                    setNotificationType(template.type);
-                    setShowNotificationModal(true);
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    background: template.color,
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 10,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Send
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Automated Messages Preview */}
         <div style={{
           marginTop: 24,
@@ -1244,6 +1115,46 @@ export function Admin() {
           </p>
 
           <div style={{ display: 'grid', gap: 16 }}>
+            {/* Welcome Messages */}
+            <div style={{ background: '#dcfce7', borderRadius: 12, padding: 16 }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                👋 Welcome Messages
+              </h3>
+              <div style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
+                Sent automatically to new users within 4 hours of signup
+              </div>
+              {users.filter(u => {
+                const hoursSinceSignup = (Date.now() - new Date(u.createdAt).getTime()) / (1000 * 60 * 60);
+                return hoursSinceSignup <= 24;
+              }).length > 0 ? (
+                <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>
+                  🆕 {users.filter(u => {
+                    const hoursSinceSignup = (Date.now() - new Date(u.createdAt).getTime()) / (1000 * 60 * 60);
+                    return hoursSinceSignup <= 24;
+                  }).length} new user(s) in the last 24h
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: '#888' }}>No new signups recently</div>
+              )}
+            </div>
+
+            {/* First Fast Completion */}
+            <div style={{ background: '#fce7f3', borderRadius: 12, padding: 16 }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700, color: '#db2777', display: 'flex', alignItems: 'center', gap: 6 }}>
+                🏆 First Fast Completion
+              </h3>
+              <div style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
+                Congratulates users when they complete their very first fast
+              </div>
+              {users.filter(u => u.fastsCompleted === 1).length > 0 ? (
+                <div style={{ fontSize: 12, color: '#db2777', fontWeight: 600 }}>
+                  🎊 {users.filter(u => u.fastsCompleted === 1).length} user(s) have completed exactly 1 fast
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: '#888' }}>No first-time completers to track</div>
+              )}
+            </div>
+
             {/* Milestone Messages */}
             <div style={{ background: '#fef9c3', borderRadius: 12, padding: 16 }}>
               <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700, color: '#ca8a04', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2033,6 +1944,82 @@ What fasting schedule has worked best for your weight loss?`;
                       {type}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Recipients list */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{
+                  fontSize: 12,
+                  color: '#888',
+                  textTransform: 'uppercase',
+                  fontWeight: 600,
+                  display: 'block',
+                  marginBottom: 6,
+                }}>
+                  Recipients ({notificationTargets.length})
+                </label>
+                <div style={{
+                  maxHeight: 150,
+                  overflowY: 'auto',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 10,
+                  background: '#f9fafb',
+                }}>
+                  {notificationTargets.map((userId, idx) => {
+                    const user = users.find(u => u.id === userId);
+                    if (!user) return null;
+                    return (
+                      <div
+                        key={userId}
+                        style={{
+                          padding: '8px 12px',
+                          borderBottom: idx < notificationTargets.length - 1 ? '1px solid #e5e7eb' : 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 8,
+                        }}
+                      >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{
+                            fontSize: 13,
+                            fontWeight: 500,
+                            color: '#333',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {user.name || user.email.split('@')[0]}
+                          </div>
+                          <div style={{
+                            fontSize: 11,
+                            color: '#888',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {user.email}
+                          </div>
+                        </div>
+                        <span style={{
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          fontSize: 10,
+                          fontWeight: 600,
+                          background: user.paidUntil && new Date(user.paidUntil) > new Date() ? '#dcfce7' : '#f3f4f6',
+                          color: user.paidUntil && new Date(user.paidUntil) > new Date() ? '#16a34a' : '#6b7280',
+                        }}>
+                          {user.paidUntil && new Date(user.paidUntil) > new Date() ? 'PAID' : 'FREE'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {notificationTargets.length === 0 && (
+                    <div style={{ padding: 16, textAlign: 'center', color: '#888', fontSize: 13 }}>
+                      No recipients selected
+                    </div>
+                  )}
                 </div>
               </div>
 
