@@ -51,15 +51,18 @@ netlify deploy --prod --skip-functions-cache
 
 | File | Purpose |
 |------|---------|
-| `src/lib/supabase.ts` | Supabase client, auth, fasting, and share functions |
+| `src/lib/supabase.ts` | Supabase client, auth, fasting, share, and messaging functions |
 | `src/contexts/AuthContext.tsx` | Manual auth session handling |
-| `src/pages/Dashboard.tsx` | Main app - timer, milestones, sharing, history |
+| `src/pages/Dashboard.tsx` | Main app - timer, milestones, sharing, history, network viz |
 | `src/pages/ShareView.tsx` | Public share page with live timer |
 | `src/pages/GroupView.tsx` | Group fasting page for viewing group members' fasts |
+| `src/pages/ConnectView.tsx` | Invite acceptance page for 1-to-1 connections |
 | `src/pages/Landing.tsx` | Login page |
 | `src/pages/Test.tsx` | Debug/diagnostic page at /test |
+| `src/components/NetworkVisualization.tsx` | Canvas-based network diagram with clickable orbs |
 | `src/lib/stripe.ts` | Stripe checkout with step logging |
 | `netlify/functions/stripe-webhook.ts` | Handles payment completion (200 days) |
+| `netlify/functions/send-message.ts` | User-to-user messaging via notifications |
 
 ## Environment Variables
 
@@ -272,6 +275,50 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```
+
+## Connection Messaging
+
+Connected users can send each other quick messages for accountability and encouragement.
+
+### How It Works
+1. User taps a friend's orb in the network visualization OR taps a connection in the list
+2. Message modal opens with 6 pre-written message options
+3. Tapping a message sends it as an in-app notification (type: `social`)
+4. "Send via SMS" button opens native SMS composer with pre-filled text
+5. Recipient sees the message in their notifications
+
+### Pre-Written Messages
+- "How's your fast going?"
+- "Are you still really fasting?"
+- "Let's fast together!"
+- "You're doing amazing, keep going!"
+- "I just started my fast!"
+- "Ready to break our fasts?"
+
+### Backend: `netlify/functions/send-message.ts`
+- Validates sender's auth token
+- Confirms an accepted `share_connections` row exists between sender and recipient
+- Rate limited: max 10 messages per hour per sender
+- Inserts a notification with `type: 'social'` for the recipient
+
+### Key Functions (supabase.ts)
+- `sendMessageToConnection(recipientUserId, messageText)` - calls the Netlify function
+
+## Network Visualization
+
+### Canvas-Based Diagram (`src/components/NetworkVisualization.tsx`)
+- Renders glassmorphic orbs on HTML Canvas with animated particles along connection lines
+- "You" orb centered, friend orbs positioned around based on count (2 = side-by-side, 3 = triangle, 4+ = circular)
+- Orbs pulse when user is fasting (green), static purple when idle
+- Chat bubble indicator on friend orbs shows they're tappable
+- Click/tap detection with generous hit targets for mobile
+- Props: `you`, `connections[]`, `onNodeClick?`
+- Accurately represents connection topology — only directly connected users have lines between them
+
+### Dashboard Integration
+- Replaces the old CSS div/SVG orb visualization
+- Container height scales with connection count (100px empty, 160px for 1-2, 200px for 3+)
+- `onNodeClick` opens the message modal for the tapped friend
 
 ## Database
 

@@ -19,11 +19,13 @@ import {
   createShareConnection, getUserConnections, getPendingInvites,
   removeShareConnection,
   getNotifications, getUnreadNotificationCount, markNotificationRead, markAllNotificationsRead,
+  sendMessageToConnection,
   type FastingSession, type FastingNote, type FastShare,
   type ConnectedFast, type ConnectionWithFast, type ShareConnection, type Notification
 } from '../lib/supabase';
 import { redirectToCheckout, FAST_PRICE_ID } from '../lib/stripe';
 import { WebGPUBackground } from '../components/WebGPUBackground';
+import { NetworkVisualization } from '../components/NetworkVisualization';
 
 // Free hours before payment required
 const FREE_HOURS = 10;
@@ -641,6 +643,10 @@ export function Dashboard() {
   const [showForgotFast, setShowForgotFast] = useState(false);
   const [showAchievementsModal, setShowAchievementsModal] = useState(false);
   const [hoveredContributionDay, setHoveredContributionDay] = useState<{ date: Date; hours: number; x: number; y: number } | null>(null);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageTarget, setMessageTarget] = useState<ConnectionWithFast | null>(null);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageSent, setMessageSent] = useState(false);
   const journalSectionRef = useRef<HTMLDivElement>(null);
 
   // Gamification data - computed from pastFasts
@@ -773,16 +779,35 @@ export function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Load connected users' fasts (only users with accepted share connections)
+  // Load connected users' fasts and connections
   useEffect(() => {
     if (!user) return;
-    const loadConnectedFasts = async () => {
-      const fasts = await getConnectedUsersFasts(user.id);
-      setConnectedFasts(fasts);
+    const loadConnectedData = async () => {
+      const [fasts, connections] = await Promise.all([
+        getConnectedUsersFasts(user.id),
+        getUserConnections(user.id),
+      ]);
+      // Deduplicate: one entry per connected user (keep most recent fast)
+      const uniqueFasts = Object.values(
+        fasts.reduce((acc, f) => {
+          if (!acc[f.user_id] || new Date(f.start_time) > new Date(acc[f.user_id].start_time)) {
+            acc[f.user_id] = f;
+          }
+          return acc;
+        }, {} as Record<string, typeof fasts[0]>)
+      );
+      const uniqueConnections = Object.values(
+        connections.reduce((acc, c) => {
+          if (!acc[c.connected_user_id]) acc[c.connected_user_id] = c;
+          return acc;
+        }, {} as Record<string, typeof connections[0]>)
+      );
+      setConnectedFasts(uniqueFasts);
+      setUserConnections(uniqueConnections);
     };
-    loadConnectedFasts();
+    loadConnectedData();
     // Refresh every 30 seconds
-    const interval = setInterval(loadConnectedFasts, 30000);
+    const interval = setInterval(loadConnectedData, 30000);
     return () => clearInterval(interval);
   }, [user]);
 
@@ -1357,81 +1382,101 @@ export function Dashboard() {
                 </div>
               </div>
 
-              {/* GitHub-style contribution grid - calendar year */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 1,
-                paddingBottom: 4,
-                width: '100%',
-              }}>
-                {Array.from({ length: 53 }, (_, weekIndex) => {
-                  const weekData = contributionData.slice(weekIndex * 7, (weekIndex + 1) * 7);
-                  // Pad the week to always have 7 days for uniform rendering
-                  while (weekData.length < 7) {
-                    weekData.push({ date: new Date(0), hours: 0, level: 0, isFuture: true, isPadding: true });
-                  }
-                  return (
-                    <div key={weekIndex} style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 }}>
-                      {weekData.map((day, dayIndex) => (
-                        <div
-                          key={dayIndex}
-                          onClick={(e) => {
-                            if (!day.isPadding && !day.isFuture) {
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setHoveredContributionDay({
-                                date: day.date,
-                                hours: day.hours,
-                                x: rect.left,
-                                y: rect.bottom + 8,
-                              });
-                            }
-                          }}
-                          style={{
-                            width: '100%',
-                            aspectRatio: '1',
-                            maxHeight: 8,
-                            borderRadius: 2,
-                            background: day.isPadding
-                              ? 'transparent'
-                              : day.isFuture
-                                ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)')
-                                : day.level === 0
-                                  ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')
-                                  : CONTRIBUTION_COLORS[day.level as keyof typeof CONTRIBUTION_COLORS],
-                            border: 'none',
-                            cursor: day.isPadding || day.isFuture ? 'default' : 'pointer',
-                            transition: 'transform 0.1s, box-shadow 0.1s',
-                            opacity: day.isFuture ? 0.7 : 1,
-                            visibility: day.isPadding ? 'hidden' : 'visible',
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!day.isPadding && !day.isFuture) {
-                              e.currentTarget.style.transform = 'scale(1.5)';
-                              if (day.level > 0) {
-                                e.currentTarget.style.boxShadow = `0 0 4px ${CONTRIBUTION_COLORS[day.level as keyof typeof CONTRIBUTION_COLORS]}`;
-                              }
-                              // Show tooltip on hover
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setHoveredContributionDay({
-                                date: day.date,
-                                hours: day.hours,
-                                x: rect.left - 10,
-                                y: rect.bottom + 2,
-                              });
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'scale(1)';
-                            e.currentTarget.style.boxShadow = 'none';
-                            // Don't close immediately - let popup handle it
-                          }}
-                        />
-                      ))}
+              {/* GitHub-style contribution grid with quarter separators */}
+              {(() => {
+                const cYear = new Date().getFullYear();
+                const yStart = new Date(cYear, 0, 1);
+                const startPad = yStart.getDay();
+                const mNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                const mWeeks = mNames.map((_, m) => {
+                  const d1 = new Date(cYear, m, 1);
+                  const dayOfYear = Math.floor((d1.getTime() - yStart.getTime()) / 86400000);
+                  return Math.floor((dayOfYear + startPad) / 7);
+                });
+                const totalW = 53;
+                const qBoundaries = new Set([mWeeks[3], mWeeks[6], mWeeks[9]]);
+
+                return (
+                  <>
+                    {/* Month labels — aligned with grid including spacers */}
+                    <div style={{ display: 'flex', gap: 1, marginBottom: 2 }}>
+                      {Array.from({ length: totalW }, (_, wi) => {
+                        const monthIdx = mWeeks.findIndex((w, i) => w === wi && i < 12);
+                        return [
+                          qBoundaries.has(wi) && <div key={`ms-${wi}`} style={{ width: 2, flexShrink: 0 }} />,
+                          <div key={wi} style={{ flex: 1, minWidth: 0, fontSize: 8, color: colors.textMuted, overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                            {monthIdx >= 0 ? mNames[monthIdx] : ''}
+                          </div>,
+                        ];
+                      })}
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Uniform grid — flat 53 columns, spacers at quarter boundaries */}
+                    <div style={{ display: 'flex', gap: 1, paddingBottom: 4, width: '100%' }}>
+                      {Array.from({ length: totalW }, (_, weekIndex) => {
+                        const weekData = contributionData.slice(weekIndex * 7, (weekIndex + 1) * 7);
+                        while (weekData.length < 7) {
+                          weekData.push({ date: new Date(0), hours: 0, level: 0, isFuture: true, isPadding: true });
+                        }
+                        return [
+                          qBoundaries.has(weekIndex) && <div key={`qs-${weekIndex}`} style={{ width: 2, flexShrink: 0 }} />,
+                          <div key={weekIndex} style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 }}>
+                              {weekData.map((day, dayIndex) => (
+                                <div
+                                  key={dayIndex}
+                                  onClick={(e) => {
+                                    if (!day.isPadding && !day.isFuture) {
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      setHoveredContributionDay({
+                                        date: day.date,
+                                        hours: day.hours,
+                                        x: rect.left,
+                                        y: rect.bottom + 8,
+                                      });
+                                    }
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    aspectRatio: '1',
+                                    maxHeight: 8,
+                                    borderRadius: 2,
+                                    background: day.isPadding || day.isFuture
+                                      ? (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)')
+                                      : day.level === 0
+                                        ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')
+                                        : CONTRIBUTION_COLORS[day.level as keyof typeof CONTRIBUTION_COLORS],
+                                    border: 'none',
+                                    cursor: day.isPadding || day.isFuture ? 'default' : 'pointer',
+                                    transition: 'transform 0.1s, box-shadow 0.1s',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!day.isPadding && !day.isFuture) {
+                                      e.currentTarget.style.transform = 'scale(1.5)';
+                                      if (day.level > 0) {
+                                        e.currentTarget.style.boxShadow = `0 0 4px ${CONTRIBUTION_COLORS[day.level as keyof typeof CONTRIBUTION_COLORS]}`;
+                                      }
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      setHoveredContributionDay({
+                                        date: day.date,
+                                        hours: day.hours,
+                                        x: rect.left - 10,
+                                        y: rect.bottom + 2,
+                                      });
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                  }}
+                                />
+                              ))}
+                            </div>,
+                        ];
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Contribution Day Popup */}
               {hoveredContributionDay && (() => {
@@ -1621,18 +1666,22 @@ export function Dashboard() {
               {/* Timer display - big and centered */}
               <div style={{
                 display: 'flex',
-                gap: 'clamp(24px, 6vw, 60px)',
+                gap: 'clamp(12px, 3vw, 40px)',
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: 24,
+                width: '100%',
+                padding: '0 4px',
+                boxSizing: 'border-box',
               }}>
-                <div style={{ textAlign: 'center' }}>
+                <div style={{ textAlign: 'center', flex: '1 1 0', minWidth: 0 }}>
                   <div style={{
-                    fontSize: 'clamp(36px, 9vw, 56px)',
+                    fontSize: 'clamp(24px, 7vw, 56px)',
                     fontWeight: 700,
                     fontFamily: 'ui-monospace, monospace',
                     color: '#16a34a',
                     lineHeight: 1,
+                    whiteSpace: 'nowrap',
                   }}>
                     {formatTime(elapsedMs)}
                   </div>
@@ -1647,15 +1696,16 @@ export function Dashboard() {
                   </div>
                 </div>
 
-                <div style={{ width: 2, height: 50, background: colors.border }} />
+                <div style={{ width: 2, height: 50, background: colors.border, flexShrink: 0 }} />
 
-                <div style={{ textAlign: 'center' }}>
+                <div style={{ textAlign: 'center', flex: '1 1 0', minWidth: 0 }}>
                   <div style={{
-                    fontSize: 'clamp(36px, 9vw, 56px)',
+                    fontSize: 'clamp(24px, 7vw, 56px)',
                     fontWeight: 700,
                     fontFamily: 'ui-monospace, monospace',
                     color: isComplete ? '#16a34a' : '#dc2626',
                     lineHeight: 1,
+                    whiteSpace: 'nowrap',
                   }}>
                     {isComplete ? '00:00:00' : formatTime(remainingMs)}
                   </div>
@@ -2094,210 +2144,33 @@ export function Dashboard() {
                 {/* Glassmorphic Network Visualization */}
                 <div style={{
                   position: 'relative',
-                  height: userConnections.length > 0 ? 110 : 90,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.3)',
+                  height: userConnections.length === 0 ? 100 : userConnections.length <= 2 ? 180 : 220,
+                  background: isDark ? '#0f172a' : '#f1f5f9',
                   borderRadius: 12,
-                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`,
-                  overflow: 'visible',
+                  border: `1px solid ${colors.border}`,
+                  overflow: 'hidden',
+                  boxShadow: isDark ? '0 4px 16px rgba(0,0,0,0.3)' : '0 4px 16px rgba(0,0,0,0.08)',
                 }}>
-                  {/* Animated gradient background */}
-                  <div style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: `radial-gradient(circle at 50% 50%, ${currentFast ? 'rgba(34, 197, 94, 0.15)' : 'rgba(139, 92, 246, 0.1)'} 0%, transparent 70%)`,
-                    animation: 'pulse-bg 3s ease-in-out infinite',
-                  }} />
-
-                  <style>{`
-                    @keyframes pulse-bg {
-                      0%, 100% { opacity: 0.5; transform: scale(1); }
-                      50% { opacity: 1; transform: scale(1.1); }
-                    }
-                    @keyframes float-orb {
-                      0%, 100% { transform: translate(-50%, -50%) scale(1); }
-                      50% { transform: translate(-50%, -50%) scale(1.08); }
-                    }
-                    @keyframes glow-green {
-                      0%, 100% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.4), 0 0 40px rgba(34, 197, 94, 0.2), inset 0 0 20px rgba(255,255,255,0.1); }
-                      50% { box-shadow: 0 0 30px rgba(34, 197, 94, 0.6), 0 0 60px rgba(34, 197, 94, 0.3), inset 0 0 30px rgba(255,255,255,0.2); }
-                    }
-                    @keyframes glow-purple {
-                      0%, 100% { box-shadow: 0 0 15px rgba(139, 92, 246, 0.3), 0 0 30px rgba(139, 92, 246, 0.15), inset 0 0 15px rgba(255,255,255,0.1); }
-                      50% { box-shadow: 0 0 25px rgba(139, 92, 246, 0.5), 0 0 50px rgba(139, 92, 246, 0.25), inset 0 0 25px rgba(255,255,255,0.15); }
-                    }
-                    @keyframes connection-flow {
-                      0% { stroke-dashoffset: 20; opacity: 0.3; }
-                      50% { opacity: 0.8; }
-                      100% { stroke-dashoffset: 0; opacity: 0.3; }
-                    }
-                  `}</style>
-
-                  {/* SVG connection lines */}
-                  {userConnections.length > 0 && (
-                    <svg style={{ position: 'absolute', width: '100%', height: '100%', pointerEvents: 'none' }}>
-                      <defs>
-                        <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor={currentFast ? '#22c55e' : '#8b5cf6'} stopOpacity="0.8" />
-                          <stop offset="100%" stopColor={currentFast ? '#16a34a' : '#6366f1'} stopOpacity="0.4" />
-                        </linearGradient>
-                      </defs>
-                      {userConnections.slice(0, 4).map((connection, i) => {
-                        const isFasting = connectedFasts.some(f => f.user_id === connection.connected_user_id);
-                        const angle = (i - (userConnections.slice(0, 4).length - 1) / 2) * 45;
-                        const endX = 50 + Math.sin(angle * Math.PI / 180) * 35;
-                        const endY = 50 - Math.cos(angle * Math.PI / 180) * 25 + 5;
-                        return (
-                          <line
-                            key={connection.connection_id}
-                            x1="50%"
-                            y1="50%"
-                            x2={`${endX}%`}
-                            y2={`${endY}%`}
-                            stroke="url(#lineGradient)"
-                            strokeWidth={isFasting ? 3 : 2}
-                            strokeDasharray="8 4"
-                            strokeLinecap="round"
-                            style={{ animation: 'connection-flow 2s linear infinite' }}
-                          />
-                        );
-                      })}
-                    </svg>
-                  )}
-
-                  {/* Center orb - You */}
-                  <div style={{
-                    position: 'absolute',
-                    left: '50%',
-                    top: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    zIndex: 2,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 2,
-                  }}>
-                    <div style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: '50%',
-                      background: currentFast
-                        ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.9))'
-                        : 'linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(99, 102, 241, 0.9))',
-                      backdropFilter: 'blur(8px)',
-                      border: '2px solid rgba(255,255,255,0.3)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#fff',
-                      fontWeight: 700,
-                      fontSize: 11,
-                      animation: currentFast ? 'float-orb 2s ease-in-out infinite, glow-green 2s ease-in-out infinite' : 'float-orb 3s ease-in-out infinite, glow-purple 3s ease-in-out infinite',
-                    }}>
-                      You
-                    </div>
-                    {currentFast && (
-                      <span style={{
-                        fontSize: 8,
-                        color: '#22c55e',
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.03em',
-                        textShadow: '0 0 10px rgba(34, 197, 94, 0.5)',
-                      }}>
-                        Fasting
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Friend orbs */}
-                  {userConnections.slice(0, 4).map((connection, i) => {
-                    const isFasting = connectedFasts.some(f => f.user_id === connection.connected_user_id);
-                    const angle = (i - (userConnections.slice(0, 4).length - 1) / 2) * 45;
-                    const xPercent = 50 + Math.sin(angle * Math.PI / 180) * 35;
-                    const yPercent = 50 - Math.cos(angle * Math.PI / 180) * 25 + 5;
-
-                    return (
-                      <div
-                        key={connection.connection_id}
-                        style={{
-                          position: 'absolute',
-                          left: `${xPercent}%`,
-                          top: `${yPercent}%`,
-                          transform: 'translate(-50%, -50%)',
-                          zIndex: 1,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: 2,
-                        }}
-                      >
-                        <div style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: '50%',
-                          background: isFasting
-                            ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.85), rgba(22, 163, 74, 0.85))'
-                            : `linear-gradient(135deg, ${isDark ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.25)'}, ${isDark ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.15)'})`,
-                          backdropFilter: 'blur(8px)',
-                          border: `1.5px solid ${isFasting ? 'rgba(255,255,255,0.3)' : 'rgba(139, 92, 246, 0.3)'}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: isFasting ? '#fff' : colors.textMuted,
-                          fontWeight: 600,
-                          fontSize: 11,
-                        }}>
-                          {(connection.display_name || 'U')[0].toUpperCase()}
-                        </div>
-                        <span style={{
-                          fontSize: 8,
-                          color: isFasting ? '#22c55e' : colors.textMuted,
-                          fontWeight: isFasting ? 600 : 400,
-                          maxWidth: 50,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          textShadow: isFasting ? '0 0 8px rgba(34, 197, 94, 0.5)' : 'none',
-                        }}>
-                          {connection.display_name || 'Friend'}
-                        </span>
-                      </div>
-                    );
-                  })}
-
-                  {/* Empty state - just You orb */}
-                  {userConnections.length === 0 && (
-                    <div style={{
-                      position: 'absolute',
-                      bottom: 12,
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      fontSize: 11,
-                      color: colors.textMuted,
-                      textAlign: 'center',
-                    }}>
-                      Connect with friends to fast together
-                    </div>
-                  )}
-
-                  {userConnections.length > 4 && (
-                    <div style={{
-                      position: 'absolute',
-                      right: 12,
-                      bottom: 12,
-                      fontSize: 11,
-                      color: colors.textMuted,
-                      padding: '4px 10px',
-                      background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                      borderRadius: 8,
-                      backdropFilter: 'blur(4px)',
-                    }}>
-                      +{userConnections.length - 4} more
-                    </div>
-                  )}
+                  <NetworkVisualization
+                    isDark={isDark}
+                    you={{ name: 'You', isFasting: !!currentFast, fastingHours: currentFast ? (Date.now() - new Date(currentFast.start_time).getTime()) / 3600000 : 0 }}
+                    connections={userConnections.map(c => {
+                      const fast = connectedFasts.find(f => f.user_id === c.connected_user_id);
+                      return {
+                        id: c.connected_user_id,
+                        name: c.display_name || 'Friend',
+                        isFasting: !!fast,
+                        fastingHours: fast ? (Date.now() - new Date(fast.start_time).getTime()) / 3600000 : 0,
+                      };
+                    })}
+                    onNodeClick={(nodeId) => {
+                      const connection = userConnections.find(c => c.connected_user_id === nodeId);
+                      if (connection) {
+                        setMessageTarget(connection);
+                        setShowMessageModal(true);
+                      }
+                    }}
+                  />
                 </div>
 
                   {/* Compact Friends Fasting List */}
@@ -2565,14 +2438,22 @@ export function Dashboard() {
                           const milestone = FASTING_MILESTONES.filter(m => m.hour <= fastHours).pop() || FASTING_MILESTONES[0];
 
                           return (
-                            <div key={connection.connection_id} style={{
-                              background: '#fff',
-                              borderRadius: 10,
-                              padding: '12px 14px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 12,
-                            }}>
+                            <div
+                              key={connection.connection_id}
+                              onClick={() => {
+                                setMessageTarget(connection);
+                                setShowMessageModal(true);
+                              }}
+                              style={{
+                                background: '#fff',
+                                borderRadius: 10,
+                                padding: '12px 14px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 12,
+                                cursor: 'pointer',
+                              }}
+                            >
                               <div style={{
                                 width: 36,
                                 height: 36,
@@ -2604,6 +2485,7 @@ export function Dashboard() {
                                   )}
                                 </div>
                               </div>
+                              <MessageSquare size={16} color="#aaa" style={{ flexShrink: 0 }} />
                               {isFasting && (
                                 <div style={{
                                   padding: '4px 10px',
@@ -2617,7 +2499,8 @@ export function Dashboard() {
                                 </div>
                               )}
                               <button
-                                onClick={async () => {
+                                onClick={async (e) => {
+                                  e.stopPropagation();
                                   if (user && confirm('Remove this connection?')) {
                                     await removeShareConnection(connection.connection_id, user.id);
                                     const connections = await getUserConnections(user.id);
@@ -2899,6 +2782,165 @@ export function Dashboard() {
         </div>
 
         {/* Achievements Modal */}
+        {/* Message Modal */}
+        {showMessageModal && messageTarget && (
+          <div
+            onClick={() => { setShowMessageModal(false); setMessageTarget(null); setMessageSent(false); }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 24,
+              zIndex: 1000,
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: isDark ? '#1e1e2e' : '#fff',
+                borderRadius: 16,
+                padding: 24,
+                width: '100%',
+                maxWidth: 340,
+                position: 'relative',
+              }}
+            >
+              <button
+                onClick={() => { setShowMessageModal(false); setMessageTarget(null); setMessageSent(false); }}
+                style={{
+                  position: 'absolute',
+                  top: 12,
+                  right: 12,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: colors.textMuted,
+                  padding: 4,
+                }}
+              >
+                <X size={18} />
+              </button>
+
+              {messageSent ? (
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <div style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 12px',
+                  }}>
+                    <Check size={24} color="#fff" />
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: colors.text }}>Sent!</div>
+                  <div style={{ fontSize: 13, color: colors.textMuted, marginTop: 4 }}>
+                    {messageTarget.display_name} will see your message
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                    <MessageSquare size={24} color={isDark ? '#8b5cf6' : '#6366f1'} style={{ marginBottom: 8 }} />
+                    <div style={{ fontSize: 16, fontWeight: 700, color: colors.text }}>
+                      Send to {messageTarget.display_name}
+                    </div>
+                    <div style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+                      Tap a message to send
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {[
+                      "How's your fast going?",
+                      "Are you still really fasting?",
+                      "Let's fast together!",
+                      "You're doing amazing, keep going!",
+                      "I just started my fast!",
+                      "Ready to break our fasts?",
+                    ].map((msg) => (
+                      <button
+                        key={msg}
+                        disabled={sendingMessage}
+                        onClick={async () => {
+                          setSendingMessage(true);
+                          const success = await sendMessageToConnection(
+                            messageTarget.connected_user_id,
+                            msg
+                          );
+                          setSendingMessage(false);
+                          if (success) {
+                            setMessageSent(true);
+                            setTimeout(() => {
+                              setMessageSent(false);
+                              setShowMessageModal(false);
+                              setMessageTarget(null);
+                            }, 1500);
+                          } else {
+                            alert('Message failed to send. Make sure you\'re running netlify dev for local testing.');
+                          }
+                        }}
+                        style={{
+                          background: isDark ? 'rgba(255,255,255,0.08)' : '#f5f5f5',
+                          border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'}`,
+                          borderRadius: 10,
+                          padding: '12px 14px',
+                          textAlign: 'left',
+                          cursor: sendingMessage ? 'wait' : 'pointer',
+                          fontSize: 14,
+                          color: colors.text,
+                          opacity: sendingMessage ? 0.6 : 1,
+                          transition: 'background 0.15s',
+                        }}
+                      >
+                        {msg}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{
+                    marginTop: 16,
+                    paddingTop: 16,
+                    borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+                  }}>
+                    <button
+                      onClick={() => {
+                        const text = encodeURIComponent(
+                          `Hey! How's your fast going? - Sent from Fast! app`
+                        );
+                        window.open(`sms:?body=${text}`, '_self');
+                      }}
+                      style={{
+                        width: '100%',
+                        background: 'transparent',
+                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'}`,
+                        borderRadius: 10,
+                        padding: '12px 14px',
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        color: colors.textMuted,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      <MessageSquare size={14} />
+                      Send via SMS instead
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {showAchievementsModal && (
           <div
             style={{

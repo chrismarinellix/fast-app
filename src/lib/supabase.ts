@@ -1505,3 +1505,28 @@ export async function markAllNotificationsRead(userId: string): Promise<boolean>
     return false;
   }
 }
+
+// Send a message to a connected user (creates a notification via Netlify function)
+export async function sendMessageToConnection(
+  recipientUserId: string,
+  messageText: string
+): Promise<boolean> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return false;
+
+    const response = await fetch('/.netlify/functions/send-message', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ recipientUserId, messageText }),
+    });
+
+    return response.ok;
+  } catch (e) {
+    console.error('Error sending message:', e);
+    return false;
+  }
+}
