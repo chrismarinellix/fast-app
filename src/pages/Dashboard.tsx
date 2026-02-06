@@ -2777,6 +2777,134 @@ export function Dashboard() {
               <p style={{ color: '#999', fontSize: 13, marginTop: 16 }}>
                 Choose from popular fasting protocols
               </p>
+
+              {/* Friends fasting section — visible even when not fasting */}
+              {userConnections.length > 0 && (
+                <div style={{
+                  marginTop: 28,
+                  background: isDark
+                    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(59, 130, 246, 0.05))'
+                    : 'linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(59, 130, 246, 0.04))',
+                  backdropFilter: 'blur(12px)',
+                  borderRadius: 20,
+                  padding: 20,
+                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(139, 92, 246, 0.15)'}`,
+                  boxShadow: isDark
+                    ? '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)'
+                    : '0 8px 32px rgba(139, 92, 246, 0.1), inset 0 1px 0 rgba(255,255,255,0.5)',
+                  textAlign: 'left',
+                }}>
+                  <h3 style={{
+                    margin: '0 0 16px 0',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    color: colors.text,
+                  }}>
+                    <div style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 8,
+                      background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Users size={14} color="#fff" />
+                    </div>
+                    Friends Fasting
+                    <span style={{
+                      marginLeft: 'auto',
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: colors.textMuted,
+                      background: colors.surfaceHover,
+                      padding: '4px 10px',
+                      borderRadius: 12,
+                    }}>
+                      {connectedFasts.length} active
+                    </span>
+                  </h3>
+
+                  {/* Network Visualization */}
+                  <div style={{
+                    position: 'relative',
+                    height: userConnections.length <= 2 ? 180 : 220,
+                    background: isDark ? '#0f172a' : '#f1f5f9',
+                    borderRadius: 12,
+                    border: `1px solid ${colors.border}`,
+                    overflow: 'hidden',
+                    boxShadow: isDark ? '0 4px 16px rgba(0,0,0,0.3)' : '0 4px 16px rgba(0,0,0,0.08)',
+                  }}>
+                    <NetworkVisualization
+                      isDark={isDark}
+                      you={{ name: 'You', isFasting: false, fastingHours: 0 }}
+                      connections={userConnections.map(c => {
+                        const fast = connectedFasts.find(f => f.user_id === c.connected_user_id);
+                        return {
+                          id: c.connected_user_id,
+                          name: c.display_name || 'Friend',
+                          isFasting: !!fast,
+                          fastingHours: fast ? (Date.now() - new Date(fast.start_time).getTime()) / 3600000 : 0,
+                        };
+                      })}
+                      onNodeClick={(nodeId) => {
+                        const connection = userConnections.find(c => c.connected_user_id === nodeId);
+                        if (connection) {
+                          setMessageTarget(connection);
+                          setShowMessageModal(true);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {/* Friends currently fasting */}
+                  {connectedFasts.length > 0 && (
+                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {connectedFasts.map(fast => {
+                        const elapsed = Date.now() - new Date(fast.start_time).getTime();
+                        const hrs = Math.floor(elapsed / 3600000);
+                        const mins = Math.floor((elapsed % 3600000) / 60000);
+                        const secs = Math.floor((elapsed % 60000) / 1000);
+                        return (
+                          <div key={fast.id} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '10px 12px',
+                            background: colors.surface,
+                            borderRadius: 10,
+                            border: `1px solid ${colors.border}`,
+                          }}>
+                            <div style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              background: '#22c55e',
+                              boxShadow: '0 0 6px rgba(34,197,94,0.5)',
+                            }} />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>{fast.user_name}</div>
+                              <div style={{ fontSize: 11, color: colors.textMuted }}>{fast.target_hours}h goal</div>
+                            </div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#22c55e', fontFamily: 'monospace' }}>
+                              {hrs}:{String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {connectedFasts.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 13, color: colors.textMuted }}>
+                      No friends currently fasting
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
