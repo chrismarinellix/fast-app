@@ -3296,243 +3296,320 @@ export function Dashboard() {
           </div>
         )}
 
-        {/* Diary Modal */}
+        {/* Journal Modal - Redesigned */}
         {showDiary && currentFast && (
           <div
             ref={journalSectionRef}
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0,0,0,0.6)',
+              background: 'rgba(0,0,0,0.55)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: 24,
+              padding: 16,
               zIndex: 100,
               overflowY: 'auto',
-              backdropFilter: 'blur(4px)',
+              backdropFilter: 'blur(10px)',
             }}
             onClick={(e) => {
               if (e.target === e.currentTarget) setShowDiary(false);
             }}
           >
             <div style={{
-              background: colors.surface,
-              borderRadius: 16,
-              padding: 20,
-              maxWidth: 420,
+              background: isDark
+                ? 'linear-gradient(160deg, rgba(30,35,55,0.98), rgba(20,24,40,0.99))'
+                : colors.surface,
+              borderRadius: 24,
+              padding: 0,
+              maxWidth: 400,
               width: '100%',
               maxHeight: '90vh',
               overflowY: 'auto',
               position: 'relative',
-              border: `1px solid ${colors.border}`,
-              boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : colors.border}`,
+              boxShadow: isDark
+                ? '0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)'
+                : '0 24px 64px rgba(0,0,0,0.12)',
             }}>
-              <button
-                onClick={() => setShowDiary(false)}
-                style={{
-                  position: 'absolute',
-                  top: 12,
-                  right: 12,
-                  width: 28,
-                  height: 28,
-                  background: colors.surfaceHover,
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  color: colors.textMuted,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                ✕
-              </button>
+              {/* Header band */}
+              <div style={{
+                padding: '20px 24px 16px',
+                textAlign: 'center',
+                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+              }}>
+                <button
+                  onClick={() => setShowDiary(false)}
+                  style={{
+                    position: 'absolute',
+                    top: 14,
+                    right: 14,
+                    width: 30,
+                    height: 30,
+                    background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+                    border: 'none',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    color: colors.textMuted,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  ✕
+                </button>
+                <div style={{
+                  fontSize: 12,
+                  color: colors.primary,
+                  fontWeight: 600,
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                  marginBottom: 4,
+                }}>
+                  Hour {Math.floor(elapsedHours)} Check-in
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: colors.text }}>
+                  How are you feeling?
+                </div>
+              </div>
 
-              {/* Journal Header - Compact */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <div style={{ fontSize: 22 }}>📝</div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: colors.text }}>
-                    Journal Entry
-                  </h3>
-                  <div style={{ fontSize: 11, color: colors.textMuted }}>
-                    Hour {Math.floor(elapsedHours)} of your fast
+              <div style={{ padding: '20px 24px 24px' }}>
+                {/* Mood - Large emoji circles */}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 24 }}>
+                  {MOODS.map(mood => {
+                    const isSelected = diaryMood === mood.value;
+                    return (
+                      <button
+                        key={mood.value}
+                        onClick={() => setDiaryMood(isSelected ? null : mood.value)}
+                        style={{
+                          width: 52,
+                          height: 52,
+                          padding: 0,
+                          background: isSelected
+                            ? mood.color
+                            : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                          border: isSelected ? 'none' : `1.5px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+                          borderRadius: '50%',
+                          fontSize: 26,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.2s ease',
+                          transform: isSelected ? 'scale(1.12)' : 'scale(1)',
+                          boxShadow: isSelected ? `0 4px 16px ${mood.color}50` : 'none',
+                        }}
+                        title={mood.label}
+                      >
+                        {mood.emoji}
+                      </button>
+                    );
+                  })}
+                </div>
+                {diaryMood && (
+                  <div style={{ textAlign: 'center', marginTop: -16, marginBottom: 16, fontSize: 12, color: colors.textSecondary }}>
+                    {MOODS.find(m => m.value === diaryMood)?.label}
+                  </div>
+                )}
+
+                {/* Energy & Hunger - side by side progress bars */}
+                <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
+                  {/* Energy */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, color: colors.textSecondary, fontWeight: 500 }}>
+                        <span style={{ marginRight: 4 }}>⚡</span>Energy
+                      </span>
+                      {diaryEnergy > 0 && (
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#eab308' }}>
+                          {diaryEnergy}/5
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {[1,2,3,4,5].map(n => (
+                        <button
+                          key={n}
+                          onClick={() => setDiaryEnergy(diaryEnergy === n ? 0 : n)}
+                          style={{
+                            flex: 1,
+                            height: 10,
+                            background: n <= diaryEnergy
+                              ? `hsl(${40 + (n - 1) * 4}, 90%, ${55 - (n - 1) * 3}%)`
+                              : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
+                            border: 'none',
+                            borderRadius: n === 1 ? '5px 2px 2px 5px' : n === 5 ? '2px 5px 5px 2px' : 2,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {/* Hunger */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, color: colors.textSecondary, fontWeight: 500 }}>
+                        <span style={{ marginRight: 4 }}>🍽️</span>Hunger
+                      </span>
+                      {diaryHunger > 0 && (
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#ef4444' }}>
+                          {diaryHunger}/5
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {[1,2,3,4,5].map(n => (
+                        <button
+                          key={n}
+                          onClick={() => setDiaryHunger(diaryHunger === n ? 0 : n)}
+                          style={{
+                            flex: 1,
+                            height: 10,
+                            background: n <= diaryHunger
+                              ? `hsl(${10 - (n - 1) * 2}, 85%, ${55 - (n - 1) * 3}%)`
+                              : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
+                            border: 'none',
+                            borderRadius: n === 1 ? '5px 2px 2px 5px' : n === 5 ? '2px 5px 5px 2px' : 2,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-            {/* Compact row: Mood + Energy/Hunger */}
-            <div style={{ display: 'flex', gap: 16, marginBottom: 12, alignItems: 'flex-start' }}>
-              {/* Mood */}
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 9, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Mood</div>
-                <div style={{ display: 'flex', gap: 3 }}>
-                  {MOODS.map(mood => (
+                {/* Feelings - flat chip grid, no category headers */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 10, fontWeight: 500 }}>
+                    Quick tags
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {Object.values(FEELING_OPTIONS).flatMap(cat => cat.options).map(option => {
+                      const isSelected = selectedFeelings.includes(option.id);
+                      return (
+                        <button
+                          key={option.id}
+                          onClick={() => toggleFeeling(option.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '6px 12px',
+                            background: isSelected
+                              ? (isDark ? 'rgba(139, 92, 246, 0.25)' : 'rgba(139, 92, 246, 0.12)')
+                              : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'),
+                            border: isSelected
+                              ? '1.5px solid #8b5cf6'
+                              : `1.5px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
+                            borderRadius: 20,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            fontSize: 12,
+                            color: isSelected ? '#8b5cf6' : colors.text,
+                            fontWeight: isSelected ? 600 : 400,
+                          }}
+                        >
+                          <span style={{ fontSize: 13 }}>{option.emoji}</span>
+                          <span>{option.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div style={{ marginBottom: 20 }}>
+                  <textarea
+                    value={diaryNote}
+                    onChange={(e) => setDiaryNote(e.target.value)}
+                    placeholder="Add a note... (optional)"
+                    rows={2}
+                    style={{
+                      width: '100%',
+                      padding: 12,
+                      background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+                      border: `1.5px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
+                      borderRadius: 12,
+                      color: colors.text,
+                      fontSize: 13,
+                      resize: 'vertical',
+                      outline: 'none',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </div>
+
+                {/* Save button */}
+                {(() => {
+                  const hasContent = selectedFeelings.length > 0 || diaryNote.trim() || diaryMood || diaryEnergy > 0 || diaryHunger > 0;
+                  return (
                     <button
-                      key={mood.value}
-                      onClick={() => setDiaryMood(mood.value)}
+                      onClick={handleAddNote}
+                      disabled={!hasContent || savingNote}
                       style={{
-                        width: 28,
-                        height: 28,
-                        padding: 0,
-                        background: diaryMood === mood.value ? mood.color : (isDark ? 'rgba(255,255,255,0.05)' : '#f5f5f5'),
-                        border: diaryMood === mood.value ? 'none' : `1px solid ${colors.border}`,
-                        borderRadius: 6,
-                        fontSize: 14,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.15s',
+                        width: '100%',
+                        padding: '14px 20px',
+                        background: hasContent
+                          ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)'
+                          : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
+                        color: hasContent ? '#fff' : colors.textMuted,
+                        border: 'none',
+                        borderRadius: 14,
+                        fontSize: 15,
+                        fontWeight: 600,
+                        cursor: hasContent ? 'pointer' : 'not-allowed',
+                        boxShadow: hasContent
+                          ? '0 4px 20px rgba(139, 92, 246, 0.3)'
+                          : 'none',
+                        transition: 'all 0.2s ease',
                       }}
-                      title={mood.label}
                     >
-                      {mood.emoji}
+                      {savingNote ? 'Saving...' : 'Save Entry'}
                     </button>
-                  ))}
-                </div>
-              </div>
-              {/* Energy */}
-              <div>
-                <div style={{ fontSize: 9, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
-                  Energy {diaryEnergy > 0 && <span style={{ color: '#eab308' }}>{diaryEnergy}</span>}
-                </div>
-                <div style={{ display: 'flex', gap: 2 }}>
-                  {[1,2,3,4,5].map(n => (
-                    <button
-                      key={n}
-                      onClick={() => setDiaryEnergy(diaryEnergy === n ? 0 : n)}
-                      style={{
-                        width: 18,
-                        height: 18,
-                        background: n <= diaryEnergy ? '#eab308' : (isDark ? 'rgba(255,255,255,0.08)' : '#e5e5e5'),
-                        border: 'none',
-                        borderRadius: 3,
-                        cursor: 'pointer',
-                        transition: 'all 0.1s',
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-              {/* Hunger */}
-              <div>
-                <div style={{ fontSize: 9, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
-                  Hunger {diaryHunger > 0 && <span style={{ color: '#ef4444' }}>{diaryHunger}</span>}
-                </div>
-                <div style={{ display: 'flex', gap: 2 }}>
-                  {[1,2,3,4,5].map(n => (
-                    <button
-                      key={n}
-                      onClick={() => setDiaryHunger(diaryHunger === n ? 0 : n)}
-                      style={{
-                        width: 18,
-                        height: 18,
-                        background: n <= diaryHunger ? '#ef4444' : (isDark ? 'rgba(255,255,255,0.08)' : '#e5e5e5'),
-                        border: 'none',
-                        borderRadius: 3,
-                        cursor: 'pointer',
-                        transition: 'all 0.1s',
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
+                  );
+                })()}
 
-            {/* Compact chip-based feelings */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 9, color: colors.textMuted, marginBottom: 6, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
-                How are you feeling? <span style={{ opacity: 0.6, fontWeight: 400 }}>tap to select</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {Object.entries(FEELING_OPTIONS).map(([categoryId, category]) => (
-                  <div key={categoryId}>
-                    <div style={{ fontSize: 8, color: colors.textMuted, marginBottom: 3, textTransform: 'uppercase', opacity: 0.7 }}>
-                      {category.label}
+                {/* Previous entries - compact timeline */}
+                {notes.length > 0 && (
+                  <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}>
+                    <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 12, fontWeight: 500 }}>
+                      Today's entries
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {category.options.map(option => {
-                        const isSelected = selectedFeelings.includes(option.id);
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {notes.slice(-3).reverse().map((note, i) => {
+                        const mood = MOODS.find(m => m.value === note.mood);
                         return (
-                          <button
-                            key={option.id}
-                            onClick={() => toggleFeeling(option.id)}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 3,
-                              padding: '4px 8px',
-                              background: isSelected
-                                ? (isDark ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.15)')
-                                : (isDark ? 'rgba(255,255,255,0.05)' : '#f3f3f3'),
-                              border: isSelected ? '1px solid #8b5cf6' : `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
-                              borderRadius: 12,
-                              cursor: 'pointer',
-                              transition: 'all 0.15s',
-                              fontSize: 11,
-                              color: isSelected ? '#8b5cf6' : colors.text,
-                              fontWeight: isSelected ? 500 : 400,
-                            }}
-                          >
-                            <span style={{ fontSize: 10 }}>{option.emoji}</span>
-                            <span>{option.label}</span>
-                          </button>
+                          <div key={note.id || i} style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 10,
+                            padding: 10,
+                            background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                            borderRadius: 10,
+                            borderLeft: `3px solid ${mood?.color || colors.border}`,
+                          }}>
+                            <div style={{ fontSize: 18, lineHeight: 1 }}>{mood?.emoji || '📝'}</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', gap: 8, fontSize: 11, color: colors.textMuted, marginBottom: 3 }}>
+                                <span>Hr {note.hour_mark}</span>
+                                {note.energy_level > 0 && <span>⚡ {note.energy_level}</span>}
+                                {note.hunger_level > 0 && <span>🍽️ {note.hunger_level}</span>}
+                              </div>
+                              <div style={{ fontSize: 12, color: colors.textSecondary, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>
+                                {note.note}
+                              </div>
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-
-            {/* Optional additional note */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 9, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
-                Notes <span style={{ opacity: 0.6, fontWeight: 400 }}>(optional)</span>
-              </div>
-              <textarea
-                value={diaryNote}
-                onChange={(e) => setDiaryNote(e.target.value)}
-                placeholder="Any other thoughts..."
-                style={{
-                  width: '100%',
-                  minHeight: 50,
-                  padding: 10,
-                  background: isDark ? 'rgba(255,255,255,0.05)' : '#f5f5f5',
-                  border: `1px solid ${colors.border}`,
-                  borderRadius: 8,
-                  color: colors.text,
-                  fontSize: 13,
-                  resize: 'vertical',
-                }}
-              />
-            </div>
-
-            <button
-              onClick={handleAddNote}
-              disabled={(selectedFeelings.length === 0 && !diaryNote.trim() && !diaryMood && diaryEnergy === 0 && diaryHunger === 0) || savingNote}
-              style={{
-                width: '100%',
-                padding: '12px 20px',
-                background: (selectedFeelings.length > 0 || diaryNote.trim() || diaryMood || diaryEnergy > 0 || diaryHunger > 0)
-                  ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)'
-                  : (isDark ? 'rgba(255,255,255,0.1)' : '#e5e5e5'),
-                color: (selectedFeelings.length > 0 || diaryNote.trim() || diaryMood || diaryEnergy > 0 || diaryHunger > 0) ? '#fff' : colors.textMuted,
-                border: 'none',
-                borderRadius: 10,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: (selectedFeelings.length > 0 || diaryNote.trim() || diaryMood || diaryEnergy > 0 || diaryHunger > 0) ? 'pointer' : 'not-allowed',
-                boxShadow: (selectedFeelings.length > 0 || diaryNote.trim() || diaryMood || diaryEnergy > 0 || diaryHunger > 0)
-                  ? '0 4px 16px rgba(139, 92, 246, 0.25)'
-                  : 'none',
-              }}
-            >
-              {savingNote ? 'Saving...' : 'Save Entry'}
-            </button>
             </div>
           </div>
         )}
@@ -3540,16 +3617,16 @@ export function Dashboard() {
         {/* Previous notes for this fast */}
         {currentFast && notes.length > 0 && (
           <div style={{
-            background: '#fff',
+            background: colors.surface,
             borderRadius: 16,
             padding: 20,
             marginBottom: 24,
-            border: '1px solid rgba(0,0,0,0.06)',
+            border: `1px solid ${colors.border}`,
           }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, color: 'rgba(0,0,0,0.5)' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, color: colors.textMuted }}>
               Your Journey ({notes.length} {notes.length === 1 ? 'note' : 'notes'})
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {notes.map((note, i) => {
                 const mood = MOODS.find(m => m.value === note.mood);
                 return (
@@ -3557,18 +3634,18 @@ export function Dashboard() {
                     display: 'flex',
                     gap: 12,
                     padding: 12,
-                    background: '#f8f8f8',
-                    borderRadius: 10,
-                    borderLeft: `3px solid ${mood?.color || '#999'}`,
+                    background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                    borderRadius: 12,
+                    borderLeft: `3px solid ${mood?.color || colors.border}`,
                   }}>
-                    <div style={{ fontSize: 24 }}>{mood?.emoji}</div>
+                    <div style={{ fontSize: 22 }}>{mood?.emoji || '📝'}</div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', gap: 12, marginBottom: 6, fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                      <div style={{ display: 'flex', gap: 10, marginBottom: 4, fontSize: 11, color: colors.textMuted }}>
                         <span>Hour {note.hour_mark}</span>
-                        <span>Energy: {note.energy_level}/5</span>
-                        <span>Hunger: {note.hunger_level}/5</span>
+                        {note.energy_level > 0 && <span>⚡ {note.energy_level}/5</span>}
+                        {note.hunger_level > 0 && <span>🍽️ {note.hunger_level}/5</span>}
                       </div>
-                      <div style={{ fontSize: 14, color: '#333' }}>{note.note}</div>
+                      <div style={{ fontSize: 13, color: colors.text, lineHeight: 1.5 }}>{note.note}</div>
                     </div>
                   </div>
                 );

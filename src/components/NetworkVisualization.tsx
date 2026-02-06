@@ -303,19 +303,35 @@ export function NetworkVisualization({ you, connections, onNodeClick, isDark = t
         ctx.lineTo(target.x, target.y);
         ctx.stroke();
 
-        // Energy particles flowing along connection
+        // Bidirectional energy particles — flowing both ways (shared data)
         for (let p = 0; p < 2; p++) {
-          const t = ((time * 0.3 + p * 0.5) % 1);
-          const px = source.x + (target.x - source.x) * t;
-          const py = source.y + (target.y - source.y) * t;
-          const alpha = Math.sin(t * Math.PI) * 0.8; // fade in/out
+          // Outgoing: source → target
+          const t1 = ((time * 0.3 + p * 0.5) % 1);
+          const px1 = source.x + (target.x - source.x) * t1;
+          const py1 = source.y + (target.y - source.y) * t1;
+          const a1 = Math.sin(t1 * Math.PI) * 0.8;
 
           ctx.save();
           ctx.beginPath();
-          ctx.arc(px, py, 2, 0, Math.PI * 2);
-          ctx.fillStyle = bothFasting ? `rgba(34,197,94,${alpha})` : `rgba(139,92,246,${alpha * 0.8})`;
+          ctx.arc(px1, py1, 2, 0, Math.PI * 2);
+          ctx.fillStyle = bothFasting ? `rgba(34,197,94,${a1})` : `rgba(139,92,246,${a1 * 0.8})`;
           ctx.shadowColor = bothFasting ? 'rgba(34,197,94,0.6)' : 'rgba(139,92,246,0.4)';
           ctx.shadowBlur = 6;
+          ctx.fill();
+          ctx.restore();
+
+          // Incoming: target → source (offset timing for visual separation)
+          const t2 = ((time * 0.25 + p * 0.5 + 0.33) % 1);
+          const px2 = target.x + (source.x - target.x) * t2;
+          const py2 = target.y + (source.y - target.y) * t2;
+          const a2 = Math.sin(t2 * Math.PI) * 0.7;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(px2, py2, 1.8, 0, Math.PI * 2);
+          ctx.fillStyle = bothFasting ? `rgba(74,222,128,${a2})` : `rgba(167,139,250,${a2 * 0.8})`;
+          ctx.shadowColor = bothFasting ? 'rgba(74,222,128,0.5)' : 'rgba(167,139,250,0.3)';
+          ctx.shadowBlur = 5;
           ctx.fill();
           ctx.restore();
         }
