@@ -232,7 +232,7 @@ export function ConnectView() {
     <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
-      padding: '20px 16px',
+      padding: 'calc(20px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px))',
     }}>
       {/* Back button */}
       <button

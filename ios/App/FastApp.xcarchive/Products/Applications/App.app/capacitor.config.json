@@ -1,0 +1,50 @@
+{
+	"appId": "com.fastapp.fasting",
+	"appName": "Fast!",
+	"webDir": "dist",
+	"server": {
+		"allowNavigation": [
+			"*.stripe.com",
+			"*.supabase.co"
+		]
+	},
+	"ios": {
+		"contentInset": "automatic",
+		"backgroundColor": "#0f0f0f",
+		"preferredContentMode": "mobile",
+		"scrollEnabled": true,
+		"allowsLinkPreview": false,
+		"limitsNavigationsToAppBoundDomains": true
+	},
+	"android": {
+		"backgroundColor": "#0f0f0f",
+		"allowMixedContent": false,
+		"captureInput": true,
+		"useLegacyBridge": false
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 2000,
+			"launchAutoHide": true,
+			"backgroundColor": "#0f0f0f",
+			"showSpinner": false,
+			"splashFadeOutDuration": 300,
+			"splashImmersive": true,
+			"splashFullScreen": true
+		},
+		"StatusBar": {
+			"style": "dark",
+			"backgroundColor": "#0f0f0f",
+			"overlaysWebView": true
+		},
+		"Keyboard": {
+			"resize": "body",
+			"style": "dark",
+			"resizeOnFullScreen": true
+		}
+	},
+	"packageClassList": [
+		"SplashScreenPlugin",
+		"StatusBarPlugin"
+	]
+}

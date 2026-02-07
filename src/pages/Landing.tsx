@@ -117,10 +117,10 @@ export function Landing() {
   };
 
   return (
-    <div style={{ background: '#fafafa', minHeight: '100vh' }}>
+    <div style={{ background: '#fafafa', minHeight: '100vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {/* Header */}
       <header style={{
-        padding: '20px 24px',
+        padding: 'calc(20px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-right, 0px)) 20px calc(24px + env(safe-area-inset-left, 0px))',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',

@@ -187,7 +187,7 @@ export function ShareView() {
     <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-      padding: '24px 16px',
+      padding: 'calc(24px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px))',
     }}>
       <div style={{
         maxWidth: 500,
